@@ -1,4 +1,4 @@
-#include "libstf/configuration.hpp"
+#include <libstf/configuration.hpp>
 
 #include <cstdio>
 #include <cstring>
@@ -6,29 +6,20 @@
 
 namespace libstf {
 
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 // ConfigRegister
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 
-ConfigRegister::ConfigRegister(uint32_t addr, uint64_t value)
-        : addr_(addr), value_(value) {
-}
+ConfigRegister::ConfigRegister(uint32_t addr, uint64_t value) : addr_(addr), value_(value) {}
 
-const uint32_t ConfigRegister::addr() const {
-    return addr_;
-}
+const uint32_t ConfigRegister::addr() const { return addr_; }
 
-const uint64_t ConfigRegister::value() const {
-    return value_;
-}
+const uint64_t ConfigRegister::value() const { return value_; }
 
-void ConfigRegister::set_value(uint64_t value) {
-    this->value_ = value;
-}
+void ConfigRegister::set_value(uint64_t value) { this->value_ = value; }
 
 std::ostream &operator<<(std::ostream &out, const ConfigRegister &conf) {
-    out << "FPGAConfiguration { .addr = " << conf.addr()
-        << " .value = 0x";
+    out << "FPGAConfiguration { .addr = " << conf.addr() << " .value = 0x";
     // Print the value as hex
     std::ios oldState(nullptr);
     oldState.copyfmt(out);
@@ -52,14 +43,12 @@ std::ostream &operator<<(std::ostream &out, const std::vector<ConfigRegister> &c
     return out;
 }
 
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 // Config
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 
-Config::Config(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset, uint32_t num_regs) : 
-        cthread(cthread), 
-        addr_offset(addr_offset),
-        num_regs(num_regs) {}
+Config::Config(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset, uint32_t num_regs)
+    : cthread(cthread), addr_offset(addr_offset), num_regs(num_regs) {}
 
 ConfigRegister Config::read_register(uint32_t addr) {
     assert(addr < num_regs);
@@ -71,9 +60,9 @@ void Config::write_register(ConfigRegister reg) {
     cthread->setCSR(reg.value(), addr_offset + reg.addr());
 }
 
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 // GlobalConfig
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 
 GlobalConfig::GlobalConfig(std::shared_ptr<coyote::cThread> cthread) : Config(cthread, 0, -1) {
     system_id_   = read_register(0).value();
@@ -93,8 +82,8 @@ GlobalConfig::GlobalConfig(std::shared_ptr<coyote::cThread> cthread) : Config(ct
 std::pair<uint32_t, uint32_t> GlobalConfig::get_config_bounds(uint64_t config_id) {
     auto it = std::find(config_ids.begin(), config_ids.end(), config_id);
     assert(it != config_ids.end());
-    
-    auto config_idx = std::distance(config_ids.begin(), it); 
+
+    auto config_idx = std::distance(config_ids.begin(), it);
 
     return std::pair<uint32_t, uint32_t>(config_bounds[config_idx], config_bounds[config_idx + 1]);
 }
@@ -104,21 +93,21 @@ bool GlobalConfig::has_config(uint64_t config_id) {
     return it != config_ids.end();
 }
 
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 // MemConfig
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 
-MemConfig::MemConfig(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset, uint32_t num_regs) : 
-    Config(cthread, addr_offset, num_regs), 
-    num_streams_(read_register(1).value()),
-    maximum_num_enqueued_buffers_(read_register(2).value()) {}
+MemConfig::MemConfig(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset,
+                     uint32_t num_regs)
+    : Config(cthread, addr_offset, num_regs), num_streams_(read_register(1).value()),
+      maximum_num_enqueued_buffers_(read_register(2).value()) {}
 
 void MemConfig::enqueue_buffer(stream_t stream_id, Buffer &buffer) {
     assert(stream_id < num_streams_);
 
     auto vaddr = reinterpret_cast<size_t>(buffer.ptr);
 
-    // Assert the buffer properties. The design only supports buffers that are a multiple of the 
+    // Assert the buffer properties. The design only supports buffers that are a multiple of the
     // transfer size.
     assert(vaddr < (1ULL << FPGA_VADDR_BITS));
     assert(buffer.capacity > 0);
@@ -127,16 +116,17 @@ void MemConfig::enqueue_buffer(stream_t stream_id, Buffer &buffer) {
 
     size_t capacity_as_num_transfers = buffer.capacity / BYTES_PER_FPGA_TRANSFER;
 
-    write_register(ConfigRegister(stream_id, vaddr << BUFFER_SIZE_BITS | capacity_as_num_transfers));
+    write_register(
+        ConfigRegister(stream_id, vaddr << BUFFER_SIZE_BITS | capacity_as_num_transfers));
 }
 
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 // StreamConfig
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 
-StreamConfig::StreamConfig(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset, uint32_t num_regs) : 
-    Config(cthread, addr_offset, num_regs), 
-    num_streams_(read_register(1).value()) {}
+StreamConfig::StreamConfig(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset,
+                           uint32_t num_regs)
+    : Config(cthread, addr_offset, num_regs), num_streams_(read_register(1).value()) {}
 
 void StreamConfig::enqueue_stream_config(stream_t stream_id, type_t type, uint8_t select) {
     assert(stream_id < num_streams_);
@@ -144,4 +134,4 @@ void StreamConfig::enqueue_stream_config(stream_t stream_id, type_t type, uint8_
     write_register(ConfigRegister(stream_id, (select << 3) | static_cast<uint8_t>(type)));
 }
 
-}  // namespace libstf
+} // namespace libstf

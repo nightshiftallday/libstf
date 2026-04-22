@@ -1,4 +1,4 @@
-#include "libstf/memory_pool.hpp"
+#include <libstf/memory_pool.hpp>
 
 #include <fstream>
 #include <memory>
@@ -13,19 +13,18 @@ namespace libstf {
 
 std::string mallctl_error_to_string(int error) {
     switch (error) {
-        case EINVAL:
-            return "The alignment parameter is not a power of 2 at least as large as sizeof(void "
-                   "*).";
-        case ENOENT:
-            return "Name or mib specifies an unknown/invalid value.";
-        case EPERM:
-            return "Attempt to read or write void value, or attempt to write read-only value.";
-        case EAGAIN:
-            return "A memory allocation failure occurred.";
-        case EFAULT:
-            return "EFAULT occurred";
-        default:
-            return "Unknown error.";
+    case EINVAL:
+        return "The alignment parameter is not a power of 2 at least as large as sizeof(void *).";
+    case ENOENT:
+        return "Name or mib specifies an unknown/invalid value.";
+    case EPERM:
+        return "Attempt to read or write void value, or attempt to write read-only value.";
+    case EAGAIN:
+        return "A memory allocation failure occurred.";
+    case EFAULT:
+        return "EFAULT occurred";
+    default:
+        return "Unknown error.";
     }
 }
 
@@ -50,8 +49,7 @@ void je_mallctl_do(std::string control_name) {
  * @param control_name The name of the control to write to
  * @param value A pointer to the value to write!
  */
-template<typename A>
-void je_mallctl_write(std::string control_name, A *value) {
+template <typename A> void je_mallctl_write(std::string control_name, A *value) {
     check_mallctl_success(je_mallctl(control_name.c_str(), nullptr, nullptr, value, sizeof(A)),
                           "Failed to write to mallctl control " + control_name + ".");
 }
@@ -61,9 +59,8 @@ void je_mallctl_write(std::string control_name, A *value) {
  * @param control_name The name of the control to read from
  * @return A value of type A as returned by the given jemalloc control
  */
-template<typename A>
-A je_mallctl_read(std::string control_name) {
-    A value;
+template <typename A> A je_mallctl_read(std::string control_name) {
+    A    value;
     auto size = sizeof(A);
     check_mallctl_success(je_mallctl(control_name.c_str(), &value, &size, nullptr, 0),
                           "Failed to read from mallctl control " + control_name + ".");
@@ -77,9 +74,9 @@ A je_mallctl_read(std::string control_name) {
  * @param write_value The value to write
  * @return Reads & Writes from the given jemalloc control name
  */
-template<typename A, typename B>
+template <typename A, typename B>
 A je_mallctl_read_write(std::string control_name, B *write_value) {
-    A read_value;
+    A    read_value;
     auto size = sizeof(A);
     check_mallctl_success(
         je_mallctl(control_name.c_str(), &read_value, &size, write_value, sizeof(B)),
@@ -102,12 +99,8 @@ HugePageMemoryPool::HugePageMemoryPool() {
 
     // Pre-allocate all 1 Gib huge pages available in the system
     auto num_huge_pages = get_number_of_available_huge_pages();
-    next_free_addr      = mmap(nullptr,
-                          num_huge_pages * PAGE_SIZE,
-                          PROT_READ | PROT_WRITE,
-                          MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | HUGE_PAGE_TYPE,
-                          -1,
-                          0);
+    next_free_addr      = mmap(nullptr, num_huge_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
+                               MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | HUGE_PAGE_TYPE, -1, 0);
     if (next_free_addr == MAP_FAILED) {
         throw std::runtime_error(
             "Could not allocated the expected number of 1GiB huge pages for HugePageMemoryPool.");
@@ -119,7 +112,7 @@ HugePageMemoryPool::HugePageMemoryPool() {
     // Create a new jemalloc arena with customs hook
     // -> The hook will request chunks of the 1GiB pages we pre-allocated
     auto hooks  = &hugepage_hooks;
-    arena_index = je_mallctl_read_write<unsigned, extent_hooks_t*>("arenas.create", &hooks);
+    arena_index = je_mallctl_read_write<unsigned, extent_hooks_t *>("arenas.create", &hooks);
 }
 
 HugePageMemoryPool::~HugePageMemoryPool() {
@@ -181,8 +174,8 @@ unsigned HugePageMemoryPool::get_tcache_id_for_calling_thread() {
     // -> We need to manually manage them. That way, we know all created tcaches
     // and can destroy them
     ReadLock r_lock(tcache_lock);
-    auto thread_id = std::this_thread::get_id();
-    auto exists    = tcache_ids.find(thread_id);
+    auto     thread_id = std::this_thread::get_id();
+    auto     exists    = tcache_ids.find(thread_id);
     if (exists != tcache_ids.end()) {
         r_lock.unlock();
         return exists->second;
@@ -191,7 +184,7 @@ unsigned HugePageMemoryPool::get_tcache_id_for_calling_thread() {
     // If we get here, the calling thread does not yet have a tcache. Create one!
     r_lock.unlock();
     WriteLock w_lock(tcache_lock);
-    unsigned tcache_id = je_mallctl_read<unsigned>("tcache.create");
+    unsigned  tcache_id = je_mallctl_read<unsigned>("tcache.create");
     tcache_ids.insert(std::make_pair(thread_id, tcache_id));
     w_lock.unlock();
     return tcache_id;
@@ -201,11 +194,12 @@ unsigned HugePageMemoryPool::get_tcache_id_for_calling_thread() {
  * Checks if the given buffer at `buf` is within the provided `bounds`.
  * Both the buffer and the bounds are encoded as a pair (base_addr, size).
  */
-inline bool is_buffer_within_bounds(std::pair<void *, size_t> bounds, std::pair<void *, size_t> buf) {
-    auto buf_start = static_cast<std::byte *>(std::get<0>(buf));
-    auto buf_end = buf_start + std::get<1>(buf);
+inline bool is_buffer_within_bounds(std::pair<void *, size_t> bounds,
+                                    std::pair<void *, size_t> buf) {
+    auto buf_start    = static_cast<std::byte *>(std::get<0>(buf));
+    auto buf_end      = buf_start + std::get<1>(buf);
     auto bounds_start = static_cast<std::byte *>(std::get<0>(bounds));
-    auto bounds_end = bounds_start + std::get<1>(bounds);
+    auto bounds_end   = bounds_start + std::get<1>(bounds);
 
     return buf_start >= bounds_start && buf_end <= bounds_end;
 }
@@ -215,15 +209,16 @@ bool HugePageMemoryPool::is_in_bounds(void *ptr, size_t size) {
 }
 
 std::pair<void *, size_t> HugePageMemoryPool::get_page_boundaries(const void *ptr) {
-    if (!is_buffer_within_bounds({initial_address_, total_capacity_}, {const_cast<void *>(ptr), 0})) {
+    if (!is_buffer_within_bounds({initial_address_, total_capacity_},
+                                 {const_cast<void *>(ptr), 0})) {
         std::ostringstream err;
-        err << "The Provided address " << static_cast<const void*>(ptr)
+        err << "The Provided address " << static_cast<const void *>(ptr)
             << " is not within the bounds of the HugePageMemoryPool";
         throw std::runtime_error(err.str());
     }
 
-    auto initial = reinterpret_cast<std::byte *>(const_cast<void *>(initial_address_));
-    auto buf = reinterpret_cast<std::byte *>(const_cast<void *>(ptr));
+    auto initial   = reinterpret_cast<std::byte *>(const_cast<void *>(initial_address_));
+    auto buf       = reinterpret_cast<std::byte *>(const_cast<void *>(ptr));
     auto n_th_page = (buf - initial) / PAGE_SIZE;
     return std::make_pair(static_cast<void *>(initial + n_th_page * PAGE_SIZE), PAGE_SIZE);
 }
@@ -235,11 +230,11 @@ Status HugePageMemoryPool::allocate(size_t size, size_t alignment, void **out) {
         // Ensure the alignment is a power of two. See: https://stackoverflow.com/a/108360/5589776
         assert((alignment & (alignment - 1)) == 0);
         auto tc = get_tcache_id_for_calling_thread();
-        *out    = je_mallocx(
-            size, MALLOCX_ALIGN(alignment) | MALLOCX_ARENA(arena_index) | MALLOCX_TCACHE(tc));
+        *out    = je_mallocx(size, MALLOCX_ALIGN(alignment) | MALLOCX_ARENA(arena_index) |
+                                       MALLOCX_TCACHE(tc));
         if (*out == nullptr) {
             return Status(StatusCode::OutOfMemory,
-                                 "HugePageMemoryPool is unable to allocate memory!");
+                          "HugePageMemoryPool is unable to allocate memory!");
         }
         total_bytes_allocated_ += size;
         bytes_allocated_ += size;
@@ -249,7 +244,8 @@ Status HugePageMemoryPool::allocate(size_t size, size_t alignment, void **out) {
     return Status::OK();
 }
 
-Status HugePageMemoryPool::reallocate(size_t old_size, size_t new_size, size_t alignment, void **ptr) {
+Status HugePageMemoryPool::reallocate(size_t old_size, size_t new_size, size_t alignment,
+                                      void **ptr) {
     // We want to allocate from an existing zero allocation
     if (*ptr == ZeroSizePointer) {
         assert(old_size == 0);
@@ -267,11 +263,11 @@ Status HugePageMemoryPool::reallocate(size_t old_size, size_t new_size, size_t a
     auto tc = get_tcache_id_for_calling_thread();
     // Normal Re-allocation with jemalloc (which cannot handle size = 0)
     *ptr = je_rallocx(*ptr, new_size,
-                   MALLOCX_ALIGN(alignment) | MALLOCX_ARENA(arena_index) | MALLOCX_TCACHE(tc));
+                      MALLOCX_ALIGN(alignment) | MALLOCX_ARENA(arena_index) | MALLOCX_TCACHE(tc));
 
     if (*ptr == nullptr) {
         return Status(StatusCode::OutOfMemory,
-                             "HugePageMemoryPool could not Reallocate as requested!");
+                      "HugePageMemoryPool could not Reallocate as requested!");
     }
 
     auto n_new_bytes = (new_size - old_size);
@@ -294,12 +290,8 @@ void HugePageMemoryPool::free(void *ptr, size_t size, size_t alignment) {
     }
 }
 
-void *HugePageMemoryPool::huge_page_alloc(extent_hooks_t *hooks,
-                                          void *new_addr,
-                                          size_t size,
-                                          size_t alignment,
-                                          bool *zero,
-                                          bool *commit,
+void *HugePageMemoryPool::huge_page_alloc(extent_hooks_t *hooks, void *new_addr, size_t size,
+                                          size_t alignment, bool *zero, bool *commit,
                                           unsigned arena_ind) {
     // When new_addr is != null, the man page says to return new_addr.
     // -> Unclear what the intended behavior is (not documented)
@@ -310,9 +302,7 @@ void *HugePageMemoryPool::huge_page_alloc(extent_hooks_t *hooks,
 
     // Check if there is enough space to fit the requested size with alignment
     auto aligned_address = std::align(
-        alignment,
-        size,
-        next_free_addr,
+        alignment, size, next_free_addr,
         // Note: std::align decreases remaining_capacity automatically by the alignment bytes!
         remaining_capacity);
 
@@ -337,40 +327,28 @@ void *HugePageMemoryPool::huge_page_alloc(extent_hooks_t *hooks,
     return aligned_address;
 }
 
-bool HugePageMemoryPool::huge_page_dealloc(
-    extent_hooks_t *hooks, void *addr, size_t size, bool committed, unsigned arena_ind) {
+bool HugePageMemoryPool::huge_page_dealloc(extent_hooks_t *hooks, void *addr, size_t size,
+                                           bool committed, unsigned arena_ind) {
     // True = opt out from deallocation and retain the memory for future use
     return true;
 }
 
-bool HugePageMemoryPool::huge_page_decommit(extent_hooks_t *hooks,
-                                            void *addr,
-                                            size_t size,
-                                            size_t offset,
-                                            size_t length,
-                                            unsigned arena_ind) {
+bool HugePageMemoryPool::huge_page_decommit(extent_hooks_t *hooks, void *addr, size_t size,
+                                            size_t offset, size_t length, unsigned arena_ind) {
     // True = Opt out from decommit
     return true;
 }
 
-bool HugePageMemoryPool::huge_page_split_extend(extent_hooks_t *hooks,
-                                                void *addr,
-                                                size_t size,
-                                                size_t size_a,
-                                                size_t size_b,
-                                                bool committed,
+bool HugePageMemoryPool::huge_page_split_extend(extent_hooks_t *hooks, void *addr, size_t size,
+                                                size_t size_a, size_t size_b, bool committed,
                                                 unsigned arena_ind) {
     // False = Pages are successfully splitted
     // -> We don't really need to do anything, everything remains in one big chunk.
     return false;
 }
 
-bool HugePageMemoryPool::huge_page_merge_extend(extent_hooks_t *hooks,
-                                                void *addr_a,
-                                                size_t size_a,
-                                                void *addr_b,
-                                                size_t size_b,
-                                                bool committed,
+bool HugePageMemoryPool::huge_page_merge_extend(extent_hooks_t *hooks, void *addr_a, size_t size_a,
+                                                void *addr_b, size_t size_b, bool committed,
                                                 unsigned arena_ind) {
     // False = Successfully merged extends
     // Since all extends given to jemalloc are already continuous, we can always return false
@@ -382,8 +360,8 @@ bool HugePageMemoryPool::huge_page_merge_extend(extent_hooks_t *hooks,
 // ----------------------------------------------------------------------------
 
 LinearAllocator::LinearAllocator(size_t size) : size_(size), offset_(0) {
-    buffer_ = static_cast<uint8_t *>(
-        std::aligned_alloc(HugePageMemoryPool::DEFAULT_ALIGNMENT, size));
+    buffer_ =
+        static_cast<uint8_t *>(std::aligned_alloc(HugePageMemoryPool::DEFAULT_ALIGNMENT, size));
     if (!buffer_)
         throw std::bad_alloc();
 }
@@ -395,7 +373,7 @@ bool LinearAllocator::allocate(size_t size, size_t alignment, void **out) {
     if (aligned + size > size_)
         return false;
 
-    *out = buffer_ + aligned;
+    *out    = buffer_ + aligned;
     offset_ = aligned + size;
     return true;
 }
@@ -408,8 +386,7 @@ void LinearAllocator::free(void *) {}
 
 constexpr size_t SIMPLE_ALLOCATOR_SIZE = 1 << 30; // 1GiB
 
-SimpleMemoryPool::SimpleMemoryPool()
-    : linear_allocator_(SIMPLE_ALLOCATOR_SIZE) {}
+SimpleMemoryPool::SimpleMemoryPool() : linear_allocator_(SIMPLE_ALLOCATOR_SIZE) {}
 
 SimpleMemoryPool::~SimpleMemoryPool() {
     std::lock_guard<std::recursive_mutex> lock(allocated_buffers_mutex);
@@ -442,15 +419,16 @@ Status SimpleMemoryPool::allocate(size_t size, size_t alignment, void **out) {
     return Status::OK();
 }
 
-Status SimpleMemoryPool::reallocate(size_t old_size, size_t new_size, size_t alignment, void **ptr) {
+Status SimpleMemoryPool::reallocate(size_t old_size, size_t new_size, size_t alignment,
+                                    void **ptr) {
     if (new_size == 0) {
         free(*ptr, old_size, alignment);
         *ptr = nullptr;
         return Status::OK();
     }
 
-    void* new_ptr = nullptr;
-    auto status = allocate(new_size, alignment, &new_ptr);
+    void *new_ptr = nullptr;
+    auto  status  = allocate(new_size, alignment, &new_ptr);
     if (!status.ok()) {
         return status;
     }
@@ -495,4 +473,4 @@ std::pair<void *, size_t> SimpleMemoryPool::get_page_boundaries(const void *ptr)
     throw std::runtime_error(err.str());
 }
 
-}  // namespace libstf
+} // namespace libstf

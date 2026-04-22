@@ -2,7 +2,9 @@
 
 namespace libstf {
 
-void enqueue_stream_input(std::shared_ptr<coyote::cThread> cthread, std::shared_ptr<TLBManager> tlb_manager, const void *ptr, size_t size, stream_t stream, bool last) {
+void enqueue_stream_input(std::shared_ptr<coyote::cThread> cthread,
+                          std::shared_ptr<TLBManager> tlb_manager, const void *ptr, size_t size,
+                          stream_t stream, bool last) {
     auto byte_ptr = static_cast<const std::byte *>(ptr);
 
     // Ensure a TLB entry exists for this data
@@ -12,7 +14,7 @@ void enqueue_stream_input(std::shared_ptr<coyote::cThread> cthread, std::shared_
     // -> We create multiple transfers of at most maximum_transfer_size
     for (size_t off = 0; off < size; off += coyote::MAX_TRANSFER_SIZE) {
         // Get the address and output_size of this chunk
-        auto curr_ptr   = (void *) (byte_ptr + off);
+        auto curr_ptr   = (void *)(byte_ptr + off);
         auto input_size = std::min(size - off, coyote::MAX_TRANSFER_SIZE);
 
         // Configure the data transfer
@@ -28,11 +30,9 @@ void enqueue_stream_input(std::shared_ptr<coyote::cThread> cthread, std::shared_
 }
 
 std::string demangle_type_name(const char *mangled) {
-    int status;
-    std::unique_ptr<char, void(*)(void*)> demangled(
-        abi::__cxa_demangle(mangled, nullptr, nullptr, &status),
-        std::free
-    );
+    int                                     status;
+    std::unique_ptr<char, void (*)(void *)> demangled(
+        abi::__cxa_demangle(mangled, nullptr, nullptr, &status), std::free);
     return status == 0 ? demangled.get() : mangled;
 }
 

@@ -15,7 +15,7 @@ enum StatusCode {
  * This status class was originally taken from the Maximus project.
  */
 class Status {
-public:
+  public:
     Status() = default;
 
     Status(int code, const std::string &msg) {
@@ -44,13 +44,12 @@ public:
         return "code: " + std::to_string(_code) + ", message: " + _message;
     }
 
-private:
-    int _code{};
+  private:
+    int         _code{};
     std::string _message{};
 };
 
-template<typename T>
-void check_status(const T &expr) {
+template <typename T> void check_status(const T &expr) {
     if (!expr.ok()) {
         throw std::runtime_error("Celeris Error: " + std::to_string(static_cast<int>(expr.code())) +
                                  "; Message: " + expr.message() + "\n" + __FILE__ + ":" +
@@ -58,4 +57,4 @@ void check_status(const T &expr) {
     }
 }
 
-}  // namespace libstf
+} // namespace libstf

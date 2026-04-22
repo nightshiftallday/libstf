@@ -2,23 +2,23 @@
 
 #include <libstf/common.hpp>
 #include <libstf/memory_pool.hpp>
-#include <libstf/tlb_manager.hpp>
 #include <libstf/output_buffer_manager.hpp>
 #include <libstf/output_handle.hpp>
+#include <libstf/tlb_manager.hpp>
 #include <libstf/util.hpp>
 
 using namespace libstf;
 
 struct Args {
-    bool   huge_pages = true;
+    bool   huge_pages           = true;
     size_t num_enqueued_buffers = 2;
-    size_t buffer_size = MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE;
-    size_t num_streams = 1;
-    size_t size = 512 * 1024 * 1024;
-    size_t num_runs = 8;
+    size_t buffer_size          = MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE;
+    size_t num_streams          = 1;
+    size_t size                 = 512 * 1024 * 1024;
+    size_t num_runs             = 8;
 };
 
-void print_usage(const char* prog) {
+void print_usage(const char *prog) {
     std::cerr << "Usage: " << prog << " [OPTIONS]\n"
               << "\n"
               << "LibSTF output buffer manager example.\n"
@@ -33,53 +33,51 @@ void print_usage(const char* prog) {
               << "  -h, --help              Show this help message\n";
 }
 
-Args parse_args(int argc, char* argv[]) {
+Args parse_args(int argc, char *argv[]) {
     Args args;
-    
-    static struct option long_options[] = {
-        {"smallpages",  no_argument,       0, 'p'},
-        {"enqueued",    required_argument, 0, 'e'},
-        {"buffer-size", required_argument, 0, 'b'},
-        {"streams",     required_argument, 0, 'S'},
-        {"size",        required_argument, 0, 's'},
-        {"runs",        required_argument, 0, 'r'},
-        {0, 0, 0, 0}
-    };
-    
+
+    static struct option long_options[] = {{"smallpages", no_argument, 0, 'p'},
+                                           {"enqueued", required_argument, 0, 'e'},
+                                           {"buffer-size", required_argument, 0, 'b'},
+                                           {"streams", required_argument, 0, 'S'},
+                                           {"size", required_argument, 0, 's'},
+                                           {"runs", required_argument, 0, 'r'},
+                                           {0, 0, 0, 0}};
+
     int opt;
     while ((opt = getopt_long(argc, argv, "pe:b:S:s:r:h", long_options, nullptr)) != -1) {
         switch (opt) {
-            case 'p':
-                args.huge_pages = false;
-                break;
-            case 'e':
-                args.num_enqueued_buffers = std::stoi(optarg);
-                break;
-            case 'b':
-                args.buffer_size = std::stoi(optarg);
-                break;
-            case 'S':
-                args.num_streams = std::stoi(optarg);
-                break;
-            case 's':
-                args.size = std::stoi(optarg);
-                break;
-            case 'r':
-                args.num_runs = std::stoi(optarg);
-                break;
-            case 'h':
-                print_usage(argv[0]);
-                exit(0);
-            default:
-                print_usage(argv[0]);
-                exit(1);
+        case 'p':
+            args.huge_pages = false;
+            break;
+        case 'e':
+            args.num_enqueued_buffers = std::stoi(optarg);
+            break;
+        case 'b':
+            args.buffer_size = std::stoi(optarg);
+            break;
+        case 'S':
+            args.num_streams = std::stoi(optarg);
+            break;
+        case 's':
+            args.size = std::stoi(optarg);
+            break;
+        case 'r':
+            args.num_runs = std::stoi(optarg);
+            break;
+        case 'h':
+            print_usage(argv[0]);
+            exit(0);
+        default:
+            print_usage(argv[0]);
+            exit(1);
         }
     }
-    
+
     return args;
 }
 
-int main(int argc, char *argv[])  {
+int main(int argc, char *argv[]) {
     Args args = parse_args(argc, argv);
 
     HEADER("CLI PARAMETERS:");
@@ -100,16 +98,18 @@ int main(int argc, char *argv[])  {
 
     // Initialize environment
     OutputBufferManager *obm_ptr = nullptr;
-    auto cthread = std::make_shared<coyote::cThread>(0, getpid(), 0, 
-        [&obm_ptr](int value) { 
-            if (obm_ptr) (* obm_ptr).handle_fpga_interrupt(value); 
-        });
+    auto cthread = std::make_shared<coyote::cThread>(0, getpid(), 0, [&obm_ptr](int value) {
+        if (obm_ptr)
+            (*obm_ptr).handle_fpga_interrupt(value);
+    });
+
     GlobalConfig global_config(cthread);
-    auto tlb_manager = std::make_shared<libstf::TLBManager>(cthread, mem_pool);
-    auto mem_config = global_config.get_config<libstf::MemConfig>();
-    auto perf_config = global_config.get_config<libstf::Config>();
-    OutputBufferManager output_buffer_manager(cthread, mem_config, mem_pool, tlb_manager, 
-        args.num_enqueued_buffers, args.buffer_size);
+    auto         tlb_manager = std::make_shared<libstf::TLBManager>(cthread, mem_pool);
+    auto         mem_config  = global_config.get_config<libstf::MemConfig>();
+    auto         perf_config = global_config.get_config<libstf::Config>();
+
+    OutputBufferManager output_buffer_manager(cthread, mem_config, mem_pool, tlb_manager,
+                                              args.num_enqueued_buffers, args.buffer_size);
     obm_ptr = &output_buffer_manager;
 
     perf_config->write_register(ConfigRegister(0, args.num_runs));
@@ -130,28 +130,28 @@ int main(int argc, char *argv[])  {
     std::cout << std::endl << "Generating input data..." << std::endl;
 
     uint8_t *input;
-    auto status = mem_pool->allocate(args.size, (void **) &input);
+    auto     status = mem_pool->allocate(args.size, (void **)&input);
     if (!status.ok()) {
         std::cout << "[FATAL]: Could not allocate input buffer" << std::endl;
         return EXIT_FAILURE;
     }
 
     for (size_t i = 0; i < args.size / sizeof(uint64_t); i++) {
-        ((uint64_t *) input)[i] = i;
+        ((uint64_t *)input)[i] = i;
     }
 
     // Benchmark
     std::cout << "Starting execution..." << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
 
-    stream_mask_t mask_all((1 << args.num_streams) - 1);
+    stream_mask_t                              mask_all((1 << args.num_streams) - 1);
     std::vector<std::shared_ptr<OutputHandle>> handles;
     for (size_t i = 0; i < args.num_runs; i++) {
         handles.emplace_back(output_buffer_manager.acquire_output_handle(mask_all));
     }
 
     std::vector<std::vector<std::shared_ptr<Buffer>>> output(args.num_runs);
-    std::thread result_fetcher([&args, &handles, &output]() {
+    std::thread                                       result_fetcher([&args, &handles, &output]() {
         for (size_t i = 0; i < args.num_runs; i++) {
             while (handles[i]->any_stream_has_more_output()) {
                 for (size_t j = 0; j < args.num_streams; j++) {
@@ -169,24 +169,25 @@ int main(int argc, char *argv[])  {
 
     result_fetcher.join();
     auto end = std::chrono::high_resolution_clock::now();
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    auto us  = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
     // Verify result
     std::cout << "Verifying output data..." << std::endl;
 
     size_t num_wrong_values = 0;
     for (size_t s = 0; s < args.num_streams; s++) {
-        auto &stream_output = output[s];
-        size_t i = 0;
+        auto  &stream_output = output[s];
+        size_t i             = 0;
         for (auto buffer : stream_output) {
-            auto ptr = (uint64_t *) buffer->ptr;
+            auto ptr = (uint64_t *)buffer->ptr;
             for (size_t j = 0; j < buffer->size / sizeof(uint64_t); j++) {
                 if (ptr[j] != i++) {
                     if (num_wrong_values == 0) {
                         HEADER("VERIFICATION FAILED:");
                     }
                     if (num_wrong_values < 5) {
-                        std::cout << "[ASSERT] Result[" << s << "]: " << ptr[j] << " != " << i << std::endl;
+                        std::cout << "[ASSERT] Result[" << s << "]: " << ptr[j] << " != " << i
+                                  << std::endl;
                     }
                     if (num_wrong_values == 5) {
                         std::cout << "..." << std::endl;
@@ -200,28 +201,35 @@ int main(int argc, char *argv[])  {
 
     // Print results
     size_t handshake_cycles = 0;
-    size_t starved_cycles = 0;
-    size_t stalled_cycles = 0;
-    size_t idle_cycles = 0;
+    size_t starved_cycles   = 0;
+    size_t stalled_cycles   = 0;
+    size_t idle_cycles      = 0;
     for (size_t i = 0; i < args.num_streams; i++) {
         handshake_cycles += perf_config->read_register(4 * i + 1).value();
-        starved_cycles   += perf_config->read_register(4 * i + 2).value();
-        stalled_cycles   += perf_config->read_register(4 * i + 3).value();
-        idle_cycles      += perf_config->read_register(4 * i + 4).value();
+        starved_cycles += perf_config->read_register(4 * i + 2).value();
+        stalled_cycles += perf_config->read_register(4 * i + 3).value();
+        idle_cycles += perf_config->read_register(4 * i + 4).value();
     }
 
-    auto total_cycles = handshake_cycles + starved_cycles + stalled_cycles + idle_cycles;
-    auto device_runtime = ((double) total_cycles) / 250.0;
+    auto total_cycles   = handshake_cycles + starved_cycles + stalled_cycles + idle_cycles;
+    auto device_runtime = ((double)total_cycles) / 250.0;
 
     HEADER("RESULTS:");
     std::cout << "Host runtime: " << us << "us" << std::endl;
-    std::cout << "Host throughput: " << (double) (args.size * args.num_runs) / us << "MB/s" << std::endl << std::endl;
-    std::cout << "Handshake cycles: " << handshake_cycles << " (" << ((double) handshake_cycles) / total_cycles * 100 << "%)" << std::endl;
-    std::cout << "Starved cycles: " << starved_cycles << " (" << ((double) starved_cycles) / total_cycles * 100 << "%)" << std::endl;
-    std::cout << "Stalled cycles: " << stalled_cycles << " (" << ((double) stalled_cycles) / total_cycles * 100 << "%)" << std::endl;
-    std::cout << "Idle cycles: " << idle_cycles << " (" << ((double) idle_cycles) / total_cycles * 100 << "%)" << std::endl;
+    std::cout << "Host throughput: " << (double)(args.size * args.num_runs) / us << "MB/s"
+              << std::endl
+              << std::endl;
+    std::cout << "Handshake cycles: " << handshake_cycles << " ("
+              << ((double)handshake_cycles) / total_cycles * 100 << "%)" << std::endl;
+    std::cout << "Starved cycles: " << starved_cycles << " ("
+              << ((double)starved_cycles) / total_cycles * 100 << "%)" << std::endl;
+    std::cout << "Stalled cycles: " << stalled_cycles << " ("
+              << ((double)stalled_cycles) / total_cycles * 100 << "%)" << std::endl;
+    std::cout << "Idle cycles: " << idle_cycles << " ("
+              << ((double)idle_cycles) / total_cycles * 100 << "%)" << std::endl;
     std::cout << "Total cycles: " << total_cycles << std::endl;
-    std::cout << "Device throughput: " << (double) (args.size * args.num_runs) / device_runtime << "MB/s" << std::endl;
-    
+    std::cout << "Device throughput: " << (double)(args.size * args.num_runs) / device_runtime
+              << "MB/s" << std::endl;
+
     return EXIT_SUCCESS;
 }

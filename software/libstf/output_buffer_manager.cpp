@@ -1,5 +1,5 @@
-#include <libstf/output_buffer_manager.hpp>
 #include <libstf/memory_pool.hpp>
+#include <libstf/output_buffer_manager.hpp>
 #include <libstf/profiling.hpp>
 
 namespace libstf {
@@ -18,7 +18,7 @@ struct InterruptValue {
     stream_t stream_id;
 };
 
-std::ostream& operator<<(std::ostream& out, const InterruptValue& expr) {
+std::ostream &operator<<(std::ostream &out, const InterruptValue &expr) {
     out << "InterruptValue{last = " << expr.last;
     out << ", bytes_written = " << expr.bytes_written;
     out << ", stream_id = " << std::to_string(expr.stream_id) << "}";
@@ -42,13 +42,11 @@ InterruptValue parse_interrupt_value(int value) {
     // 1. Stream id
     result.stream_id = extract_bits_from_uint32(value, 0, FPGA_INTERRUPT_STREAM_ID_BITS);
     // 2. The size of data that was written to the memory we provided
-    result.bytes_written = extract_bits_from_uint32(value,
-                                                    FPGA_INTERRUPT_STREAM_ID_BITS,
+    result.bytes_written = extract_bits_from_uint32(value, FPGA_INTERRUPT_STREAM_ID_BITS,
                                                     FPGA_INTERRUPT_TRANSFER_SIZE_BITS);
     // 3. Whether this was the last transfer for this stream
     uint32_t last = extract_bits_from_uint32(
-        value,
-        FPGA_INTERRUPT_STREAM_ID_BITS + FPGA_INTERRUPT_TRANSFER_SIZE_BITS,
+        value, FPGA_INTERRUPT_STREAM_ID_BITS + FPGA_INTERRUPT_TRANSFER_SIZE_BITS,
         FPGA_INTERRUPT_LAST_BITS);
     result.last = last == 1;
 
@@ -60,28 +58,29 @@ const std::string prefix = "libstf::OutputBufferManager::";
 // ----------------------------------------------------------------------------
 // Public methods
 // ----------------------------------------------------------------------------
-OutputBufferManager::OutputBufferManager(std::shared_ptr<coyote::cThread> cthread, 
-    std::shared_ptr<MemConfig> mem_config, std::shared_ptr<MemoryPool> memory_pool, 
-    std::shared_ptr<TLBManager> tlb_manager, size_t num_buffers_to_enqueue, size_t buffer_capacity)
-        : cthread(cthread)
-        , mem_config(mem_config)
-        , memory_pool(memory_pool)
-        , tlb_manager(tlb_manager)
-        , NUM_STREAMS(mem_config->num_streams())
-        , NUM_BUFFERS_TO_ENQUEUE(num_buffers_to_enqueue)
-        , BUFFER_CAPACITY(buffer_capacity)
-        , enqueued_buffers(NUM_STREAMS)
-        , enqueued_handles(NUM_STREAMS) {
+OutputBufferManager::OutputBufferManager(std::shared_ptr<coyote::cThread> cthread,
+                                         std::shared_ptr<MemConfig>       mem_config,
+                                         std::shared_ptr<MemoryPool>      memory_pool,
+                                         std::shared_ptr<TLBManager>      tlb_manager,
+                                         size_t num_buffers_to_enqueue, size_t buffer_capacity)
+    : cthread(cthread), mem_config(mem_config), memory_pool(memory_pool), tlb_manager(tlb_manager),
+      NUM_STREAMS(mem_config->num_streams()), NUM_BUFFERS_TO_ENQUEUE(num_buffers_to_enqueue),
+      BUFFER_CAPACITY(buffer_capacity), enqueued_buffers(NUM_STREAMS),
+      enqueued_handles(NUM_STREAMS) {
     if (NUM_BUFFERS_TO_ENQUEUE == 0)
         throw std::runtime_error("Number of enqueued buffers has to be larger than 0");
     if (NUM_BUFFERS_TO_ENQUEUE > mem_config->maximum_num_enqueued_buffers())
-        throw std::runtime_error("Number of enqueued buffers is higher than the maximum supported by the hardware");
+        throw std::runtime_error(
+            "Number of enqueued buffers is higher than the maximum supported by the hardware");
     if (BUFFER_CAPACITY < BYTES_PER_FPGA_TRANSFER)
-        throw std::runtime_error("Buffer capacity has to be >= " + std::to_string(BYTES_PER_FPGA_TRANSFER));
+        throw std::runtime_error("Buffer capacity has to be >= " +
+                                 std::to_string(BYTES_PER_FPGA_TRANSFER));
     if (BUFFER_CAPACITY >= MAXIMUM_FPGA_BUFFER_SIZE)
-        throw std::runtime_error("Buffer capacity has to be < " + std::to_string(MAXIMUM_FPGA_BUFFER_SIZE));
+        throw std::runtime_error("Buffer capacity has to be < " +
+                                 std::to_string(MAXIMUM_FPGA_BUFFER_SIZE));
     if (BUFFER_CAPACITY % BYTES_PER_FPGA_TRANSFER)
-        throw std::runtime_error("Buffer capacity has to be a multiple of " + std::to_string(BYTES_PER_FPGA_TRANSFER));
+        throw std::runtime_error("Buffer capacity has to be a multiple of " +
+                                 std::to_string(BYTES_PER_FPGA_TRANSFER));
 }
 
 OutputBufferManager::~OutputBufferManager() {
@@ -111,7 +110,8 @@ void OutputBufferManager::handle_fpga_interrupt(int coyote_value) {
     Profiler::close_regions({prefix + "handle_fpga_interrupt"});
 }
 
-std::shared_ptr<OutputHandle> OutputBufferManager::acquire_output_handle(stream_mask_t active_mask) {
+std::shared_ptr<OutputHandle>
+OutputBufferManager::acquire_output_handle(stream_mask_t active_mask) {
     assert(active_mask.any() && (active_mask >> NUM_STREAMS).none());
 
     Profiler::open_regions({prefix + "acquire_output_handle"});
@@ -132,14 +132,12 @@ std::shared_ptr<OutputHandle> OutputBufferManager::acquire_output_handle(stream_
     return handle;
 }
 
-void OutputBufferManager::flush_buffers() {
-    mem_config->flush_buffers();
-}
+void OutputBufferManager::flush_buffers() { mem_config->flush_buffers(); }
 
 // ----------------------------------------------------------------------------
 // Private methods
 // ----------------------------------------------------------------------------
-void OutputBufferManager::free_buffers_in_queue(std::queue<Buffer>& queue) {
+void OutputBufferManager::free_buffers_in_queue(std::queue<Buffer> &queue) {
     while (!queue.empty()) {
         auto buffer = queue.front();
         memory_pool->free(buffer.ptr, buffer.capacity, HugePageMemoryPool::DEFAULT_ALIGNMENT);
@@ -147,7 +145,8 @@ void OutputBufferManager::free_buffers_in_queue(std::queue<Buffer>& queue) {
     }
 }
 
-void OutputBufferManager::move_current_buffer_to_handle(stream_t stream_id, uint32_t bytes_written, bool last) {
+void OutputBufferManager::move_current_buffer_to_handle(stream_t stream_id, uint32_t bytes_written,
+                                                        bool last) {
     assert(!enqueued_handles[stream_id].empty());
 
     Profiler::open_regions({prefix + "move_current_buffer_to_handle"});
@@ -157,17 +156,16 @@ void OutputBufferManager::move_current_buffer_to_handle(stream_t stream_id, uint
     // Check that the FPGA did not write out of bounds
     assert(bytes_written <= active_buffer.capacity);
 
-    // Only move the buffer if there was actual output. No output can happen if all output was 
+    // Only move the buffer if there was actual output. No output can happen if all output was
     // already sent or there simply was no output. In these cases, an interrupt is still raised for
     // each output stream.
     if (bytes_written > 0) {
-        // Resize the allocation to fit the actual size written by the FPGA, if not all memory was 
+        // Resize the allocation to fit the actual size written by the FPGA, if not all memory was
         // used.
         if (bytes_written < active_buffer.capacity) {
-            auto res = memory_pool->reallocate(active_buffer.capacity,
-                                               bytes_written,
-                                               HugePageMemoryPool::DEFAULT_ALIGNMENT,
-                                               &active_buffer.ptr);
+            auto res =
+                memory_pool->reallocate(active_buffer.capacity, bytes_written,
+                                        HugePageMemoryPool::DEFAULT_ALIGNMENT, &active_buffer.ptr);
             assert(res.ok());
         }
         active_buffer.size = bytes_written;
@@ -198,7 +196,7 @@ void OutputBufferManager::enqueue_buffer_for_stream(stream_t stream_id) {
     auto res = memory_pool->allocate(buffer.capacity, alignment, &buffer.ptr);
     assert(res.ok());
 
-    tlb_manager->ensure_tlb_mapping(reinterpret_cast<std::byte*>(buffer.ptr), buffer.capacity);
+    tlb_manager->ensure_tlb_mapping(reinterpret_cast<std::byte *>(buffer.ptr), buffer.capacity);
 
     // 2. Store buffer
     enqueued_buffers[stream_id].push(buffer);
@@ -215,4 +213,4 @@ void OutputBufferManager::ensure_stream_has_buffers(stream_t stream_id) {
     }
 }
 
-}  // namespace libstf
+} // namespace libstf

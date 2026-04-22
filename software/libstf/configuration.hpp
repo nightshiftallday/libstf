@@ -1,37 +1,38 @@
 #pragma once
 
 #include <cmath>
-#include <unordered_set>
-#include <vector>
 #include <cstdint>
 #include <ostream>
+#include <unordered_set>
+#include <vector>
 
-#include "coyote/cThread.hpp"
+#include <coyote/cThread.hpp>
 
-#include "libstf/common.hpp"
-#include "libstf/buffer.hpp"
-#include "libstf/util.hpp"
+#include <libstf/buffer.hpp>
+#include <libstf/common.hpp>
+#include <libstf/util.hpp>
 
 namespace libstf {
 
 class ConfigRegister {
-public:
+  public:
     ConfigRegister(uint32_t addr, uint64_t value);
 
     void set_value(uint64_t value);
 
     const uint32_t addr() const;
     const uint64_t value() const;
-private:
+
+  private:
     uint32_t addr_;
     uint64_t value_;
 };
 
-std::ostream& operator<<(std::ostream& out, const ConfigRegister& conf);
-std::ostream& operator<<(std::ostream& out, const std::vector<ConfigRegister>& conf);
+std::ostream &operator<<(std::ostream &out, const ConfigRegister &conf);
+std::ostream &operator<<(std::ostream &out, const std::vector<ConfigRegister> &conf);
 
 class Config {
-public:
+  public:
     Config(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset, uint32_t num_regs);
 
     /**
@@ -43,22 +44,22 @@ public:
 
     static constexpr uint64_t ID = -1;
 
-protected:
+  protected:
     std::shared_ptr<coyote::cThread> cthread;
-    uint32_t addr_offset;
-    uint32_t num_regs;
+    uint32_t                         addr_offset;
+    uint32_t                         num_regs;
 };
 
 class GlobalConfig : private Config {
-public:
+  public:
     /**
-     * Note: Takes the cThread as a reference so we don't create a circular dependency with 
+     * Note: Takes the cThread as a reference so we don't create a circular dependency with
      * CelerisContext.
      */
     GlobalConfig(std::shared_ptr<coyote::cThread> cthread);
 
     /**
-     * Checks whether a config with a certain config_id is present in the system. Can be used to 
+     * Checks whether a config with a certain config_id is present in the system. Can be used to
      * check which operators the Celeris instance flashed to the device supports.
      */
     bool has_config(uint64_t config_id);
@@ -77,30 +78,31 @@ public:
         if (it == configs_.end()) {
             if (!has_config(T::ID)) {
                 auto name = demangle_type_name(typeid(T).name());
-                throw std::runtime_error("Hardware design on device has no configuration " + name + 
-                    "(ID=" + std::to_string(T::ID) + ") which we were trying to get");
+                throw std::runtime_error("Hardware design on device has no configuration " + name +
+                                         "(ID=" + std::to_string(T::ID) +
+                                         ") which we were trying to get");
             }
 
-            auto bounds = get_config_bounds(T::ID);
+            auto bounds      = get_config_bounds(T::ID);
             auto addr_offset = std::get<0>(bounds);
-            auto num_regs = std::get<1>(bounds) - addr_offset;
-            configs_[T::ID] = std::make_shared<T>(cthread, addr_offset, num_regs);
+            auto num_regs    = std::get<1>(bounds) - addr_offset;
+            configs_[T::ID]  = std::make_shared<T>(cthread, addr_offset, num_regs);
         }
 
         return std::static_pointer_cast<T>(configs_[T::ID]);
     }
 
-private:
+  private:
     uint64_t system_id_;
     uint32_t num_configs_;
 
-    std::vector<uint64_t> config_ids;
-    std::vector<uint32_t> config_bounds;
+    std::vector<uint64_t>                                 config_ids;
+    std::vector<uint32_t>                                 config_bounds;
     std::unordered_map<uint64_t, std::shared_ptr<Config>> configs_;
 };
 
 class MemConfig : public Config {
-public:
+  public:
     MemConfig(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset, uint32_t num_regs);
 
     /**
@@ -121,13 +123,13 @@ public:
 
     static constexpr uint64_t ID = 0;
 
-private:
+  private:
     stream_t num_streams_;
-    size_t maximum_num_enqueued_buffers_;
+    size_t   maximum_num_enqueued_buffers_;
 };
 
 class StreamConfig : public Config {
-public:
+  public:
     StreamConfig(std::shared_ptr<coyote::cThread> cthread, uint32_t addr_offset, uint32_t num_regs);
 
     void enqueue_stream_config(stream_t stream_id, type_t type, uint8_t select);
@@ -136,8 +138,8 @@ public:
 
     static constexpr uint64_t ID = 1;
 
-private:
+  private:
     stream_t num_streams_;
 };
 
-}  // namespace libstf
+} // namespace libstf

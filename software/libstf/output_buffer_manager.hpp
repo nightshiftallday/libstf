@@ -8,21 +8,21 @@
 #include <libstf/common.hpp>
 #include <libstf/configuration.hpp>
 #include <libstf/memory_pool.hpp>
-#include <libstf/tlb_manager.hpp>
 #include <libstf/output_handle.hpp>
+#include <libstf/tlb_manager.hpp>
 
 namespace libstf {
 
 class OutputBufferManager {
-public:
+  public:
     /**
      * Creates a new output buffer manager. The manager is responsible for managing buffers for any
      * output produced by the FPGA. This implementation relies on CSR registers and interrupts
      * that tell the OutputBufferManager how much memory was written by the FPGA.
-     * 
+     *
      * The buffer capacity can influence the performance of the FPGA-initiated transfers
      * and the memory footprint of the OutputBufferManager.
-     * 
+     *
      * @param cthread
      * @param mem_config
      * @param memory_pool
@@ -30,9 +30,11 @@ public:
      * @param num_buffers_to_enqueue
      * @param buffer_capacity
      */
-    OutputBufferManager(std::shared_ptr<coyote::cThread> cthread, std::shared_ptr<MemConfig> mem_config, 
-        std::shared_ptr<MemoryPool> memory_pool, std::shared_ptr<TLBManager> tlb_manager, 
-        size_t num_buffers_to_enqueue = 2, size_t buffer_capacity = MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE);
+    OutputBufferManager(std::shared_ptr<coyote::cThread> cthread,
+                        std::shared_ptr<MemConfig>       mem_config,
+                        std::shared_ptr<MemoryPool>      memory_pool,
+                        std::shared_ptr<TLBManager> tlb_manager, size_t num_buffers_to_enqueue = 2,
+                        size_t buffer_capacity = MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE);
 
     ~OutputBufferManager();
 
@@ -44,12 +46,12 @@ public:
     void handle_fpga_interrupt(int value);
 
     /**
-     * Indicates that a set of streams providedby the provided mask will receive at least one data 
+     * Indicates that a set of streams providedby the provided mask will receive at least one data
      * beat from your design. This can also be an empty data beat (e.g. keep all 0 and last = 1). It
      * returns a handle that the data can be retrieved from eventually. The method may be called
      * multiple times to essentially enqueue multiple output stream sets.
      *
-     * @param active_streams A mask of the streams to wait on for output. Only the first NUM_STREAMS 
+     * @param active_streams A mask of the streams to wait on for output. Only the first NUM_STREAMS
      * bits may be set.
      * @return A handle to read the data from.
      */
@@ -61,16 +63,17 @@ public:
      */
     void flush_buffers();
 
-private:
-    // We need to pass these because otherwise we will get a circular dependency to the CelerisContext
+  private:
+    // We need to pass these because otherwise we will get a circular dependency to the
+    // CelerisContext
     std::shared_ptr<coyote::cThread> cthread;
-    std::shared_ptr<MemConfig> mem_config;
-    std::shared_ptr<MemoryPool> memory_pool;
-    std::shared_ptr<TLBManager> tlb_manager;
+    std::shared_ptr<MemConfig>       mem_config;
+    std::shared_ptr<MemoryPool>      memory_pool;
+    std::shared_ptr<TLBManager>      tlb_manager;
 
     const stream_t NUM_STREAMS;
-    const size_t NUM_BUFFERS_TO_ENQUEUE;
-    const size_t BUFFER_CAPACITY;
+    const size_t   NUM_BUFFERS_TO_ENQUEUE;
+    const size_t   BUFFER_CAPACITY;
 
     // State for each stream
     // There is one mutex to protect and changes in the stream_state.
@@ -78,15 +81,15 @@ private:
     // it seems very unlikely that it is required to e.g. read several stream outputs
     // simultaneously. This also means it's sufficient to hold a lock guard in the public functions.
     // No explicit locking in the private functions is needed!
-    std::mutex enqueued_buffers_mutex;
+    std::mutex                                             enqueued_buffers_mutex;
     std::vector<std::queue<std::shared_ptr<OutputHandle>>> enqueued_handles;
-    std::vector<std::queue<Buffer>> enqueued_buffers;
+    std::vector<std::queue<Buffer>>                        enqueued_buffers;
 
     /**
      * Releases all memory in the given queue of buffers
      * @param queue
      */
-    void free_buffers_in_queue(std::queue<Buffer>& queue);
+    void free_buffers_in_queue(std::queue<Buffer> &queue);
 
     /**
      * For the given stream_id, takes the currently used buffer from the
@@ -99,15 +102,15 @@ private:
     void move_current_buffer_to_handle(stream_t stream_id, uint32_t bytes_written, bool last);
 
     /**
-    * Allocates a new buffer for the given stream and sends it to the FPGA.
-    * @param stream_id
-    */
+     * Allocates a new buffer for the given stream and sends it to the FPGA.
+     * @param stream_id
+     */
     void enqueue_buffer_for_stream(stream_t stream_id);
-    
+
     /**
-    * Allocates new buffers for the given stream until there are at least NUM_BUFFERS_TO_ENQUEUE.
-    * @param stream_id
-    */
+     * Allocates new buffers for the given stream until there are at least NUM_BUFFERS_TO_ENQUEUE.
+     * @param stream_id
+     */
     void ensure_stream_has_buffers(stream_t stream_id);
 
     /**
@@ -128,4 +131,4 @@ private:
     void write_register_for_buffer(stream_t stream_id, Buffer &buffer);
 };
 
-}  // namespace libstf
+} // namespace libstf

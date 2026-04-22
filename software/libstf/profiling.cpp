@@ -4,8 +4,7 @@
 #include <stdexcept>
 #include <string>
 
-const std::string profile =
-    "runtime-report(calc.inclusive=true,output=stdout),event-trace";
+const std::string profile = "runtime-report(calc.inclusive=true,output=stdout),event-trace";
 #endif
 
 namespace libstf {
@@ -16,43 +15,42 @@ cali::ConfigManager Profiler::mgr;
 
 void Profiler::init() {
 #ifdef LIBSTF_WITH_PROFILING
-  cali_config_set("CALI_CALIPER_ATTRIBUTE_DEFAULT_SCOPE", "process");
-  mgr = cali::ConfigManager();
-  mgr.add(profile.c_str());
+    cali_config_set("CALI_CALIPER_ATTRIBUTE_DEFAULT_SCOPE", "process");
+    mgr = cali::ConfigManager();
+    mgr.add(profile.c_str());
 
-  if (mgr.error()) {
-    throw std::runtime_error("error while initializing caliper: " +
-                             mgr.error_msg());
-  }
+    if (mgr.error()) {
+        throw std::runtime_error("error while initializing caliper: " + mgr.error_msg());
+    }
 #endif
 }
 
 void Profiler::start() {
 #ifdef LIBSTF_WITH_PROFILING
-  mgr.start();
+    mgr.start();
 #endif
 }
 
 void Profiler::flush() {
 #ifdef LIBSTF_WITH_PROFILING
-  mgr.flush();
+    mgr.flush();
 #endif
 }
 
 void Profiler::open_regions(const std::vector<std::string> &regions) {
 #ifdef LIBSTF_WITH_PROFILING
-  for (const auto &region : regions) {
-    CALI_MARK_BEGIN(region.c_str());
-  }
+    for (const auto &region : regions) {
+        CALI_MARK_BEGIN(region.c_str());
+    }
 #endif
 }
 
 void Profiler::close_regions(const std::vector<std::string> &regions) {
 #ifdef LIBSTF_WITH_PROFILING
-  // iterate over regions in reverse order
-  for (auto it = regions.rbegin(); it != regions.rend(); ++it) {
-    CALI_MARK_END(it->c_str());
-  }
+    // iterate over regions in reverse order
+    for (auto it = regions.rbegin(); it != regions.rend(); ++it) {
+        CALI_MARK_END(it->c_str());
+    }
 #endif
 }
 

@@ -1,34 +1,31 @@
 #pragma once
 
-#include <queue>
-#include <vector>
-#include <optional>
-#include <mutex>
 #include <condition_variable>
-#include <memory>
-#include <stdexcept>
 #include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <queue>
+#include <stdexcept>
+#include <vector>
 
-#include <libstf/common.hpp>
-#include <libstf/memory_pool.hpp>
 #include <libstf/buffer.hpp>
 #include <libstf/common.hpp>
+#include <libstf/memory_pool.hpp>
 
 namespace libstf {
 
 class OutputHandle {
     friend class OutputBufferManager;
 
-protected:
+  protected:
     /**
      * Protected constructor because we only want the OutputBufferManager to create these.
      */
-    OutputHandle(std::shared_ptr<MemoryPool> memory_pool, stream_mask_t active_streams, stream_t num_streams) : 
-        NUM_STREAMS(num_streams),
-        memory_pool(memory_pool),
-        active_streams(active_streams),
-        finished_streams(0),
-        output_buffers(num_streams) {};
+    OutputHandle(std::shared_ptr<MemoryPool> memory_pool, stream_mask_t active_streams,
+                 stream_t num_streams)
+        : NUM_STREAMS(num_streams), memory_pool(memory_pool), active_streams(active_streams),
+          finished_streams(0), output_buffers(num_streams) {};
 
     /**
      * Push a buffer that the FPGA is finished with to the specified stream of this OutputHandle.
@@ -43,7 +40,7 @@ protected:
      */
     void mark_done(stream_t stream_id);
 
-public:
+  public:
     ~OutputHandle();
 
     /**
@@ -92,11 +89,11 @@ public:
      */
     void add_callback(std::function<void(stream_t)> callback);
 
-private:
-    const stream_t NUM_STREAMS;
-    std::shared_ptr<MemoryPool> memory_pool;
+  private:
+    const stream_t                NUM_STREAMS;
+    std::shared_ptr<MemoryPool>   memory_pool;
     std::function<void(stream_t)> callback;
-    std::optional<std::thread> callback_thread;
+    std::optional<std::thread>    callback_thread;
 
     stream_mask_t active_streams;   // Streams active for this handle
     stream_mask_t finished_streams; // Streams that have received their last buffer
@@ -107,8 +104,8 @@ private:
     // it seems very unlikely that it is required to e.g. read several stream outputs
     // simultaneously. This also means it's sufficient to hold a lock guard in the public functions.
     // No explicit locking in the private functions is needed!
-    std::mutex output_buffers_mutex;
-    std::condition_variable output_buffers_cv;
+    std::mutex                      output_buffers_mutex;
+    std::condition_variable         output_buffers_cv;
     std::vector<std::queue<Buffer>> output_buffers;
 
     /**
@@ -124,9 +121,9 @@ private:
     bool any_stream_output_available() const;
 
     /**
-     * Creates a shared pointer for a Buffer from the first element in the transferred_memory queue 
-     * for the given stream. The queue needs to have elements! The shared_ptr manages the underlying 
-     * memory, i.e. the ownership is transferred out of this class. When the last reference to the 
+     * Creates a shared pointer for a Buffer from the first element in the transferred_memory queue
+     * for the given stream. The queue needs to have elements! The shared_ptr manages the underlying
+     * memory, i.e. the ownership is transferred out of this class. When the last reference to the
      * shared pointer is deleted, the underlying memory of the buffer will be freed.
      * This function needs to be called with proper locking in place!
      */

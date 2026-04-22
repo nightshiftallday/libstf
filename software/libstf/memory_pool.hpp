@@ -4,19 +4,19 @@
 
 #include <atomic>
 #include <cassert>
+#include <cstring>
 #include <iostream>
 #include <mutex>
-#include <unordered_map>
-#include <cstring>
-#include <sstream>
 #include <shared_mutex>
+#include <sstream>
 #include <thread>
+#include <unordered_map>
 
-#include "jemalloc/jemalloc.h"
+#include <jemalloc/jemalloc.h>
 
-#include "libstf/error_handling.hpp"
+#include <libstf/error_handling.hpp>
 
-typedef std::shared_mutex ReaderWriterLock;
+typedef std::shared_mutex                  ReaderWriterLock;
 typedef std::unique_lock<ReaderWriterLock> WriteLock;
 typedef std::shared_lock<ReaderWriterLock> ReadLock;
 
@@ -26,23 +26,23 @@ namespace libstf {
  * Base class for memory pools in libstf.
  */
 class MemoryPool {
-public:
+  public:
     virtual ~MemoryPool() = default;
 
     /**
      * Allocates a memory block of at least the specified size.
-     * 
+     *
      * @param size The minimum number of bytes to allocate.
      * @param alignment The required alignment for the memory block.
      * @param out Pointer to store the address of the allocated memory.
      * @return Status indicating success or failure.
      */
     virtual Status allocate(size_t size, size_t alignment, void **out) = 0;
-    virtual Status allocate(size_t size, void **out) = 0;
+    virtual Status allocate(size_t size, void **out)                   = 0;
 
     /**
      * Resizes an existing allocated memory block.
-     * 
+     *
      * Since most platform allocators do not support aligned reallocation,
      * this operation may involve copying the data to a new memory block.
      * @param old_size The current size of the allocated memory block.
@@ -55,7 +55,7 @@ public:
 
     /**
      * Frees a previously allocated memory block.
-     * 
+     *
      * @param ptr Pointer to the start of the allocated memory block.
      * @param size The size of the allocated memory block.
      *        Some allocators may use this for tracking memory usage or
@@ -63,7 +63,7 @@ public:
      * @param alignment The alignment of the memory block.
      */
     virtual void free(void *ptr, size_t size, size_t alignment) = 0;
-    virtual void free(void *ptr, size_t size) = 0;
+    virtual void free(void *ptr, size_t size)                   = 0;
 
     /**
      * Returns the address and size for the page in which the given allocation was placed.
@@ -75,28 +75,28 @@ public:
 
     /**
      * Retrieves the current amount of allocated memory that has not been freed.
-     * 
+     *
      * @return The number of bytes currently allocated.
      */
     virtual size_t bytes_allocated() const = 0;
 
     /**
      * Retrieves the total amount of memory allocated since the pool's creation.
-     * 
+     *
      * @return The cumulative number of bytes allocated.
      */
     virtual size_t total_bytes_allocated() const = 0;
 
     /**
      * Retrieves the total number of allocation and reallocation requests.
-     * 
+     *
      * @return The number of times memory has been allocated or reallocated.
      */
     virtual size_t num_allocations() const = 0;
 
     /**
      * Retrieves the peak memory usage recorded by this memory pool.
-     * 
+     *
      * @return The highest number of bytes allocated at any point.
      *         Returns -1 if tracking is not implemented.
      */
@@ -104,16 +104,16 @@ public:
 
     /**
      * Retrieves the name of the memory allocation backend in use.
-     * 
+     *
      * @return A string representing the backend (e.g., "system", "jemalloc").
      */
     virtual std::string backend_name() const = 0;
 };
 
-// A static piece of memory for 0-size allocations, to return an aligned non-null pointer. This is 
-// required because Arrow memory pools (when we use this in other projects) need to support 0-byte 
+// A static piece of memory for 0-size allocations, to return an aligned non-null pointer. This is
+// required because Arrow memory pools (when we use this in other projects) need to support 0-byte
 // allocations, reallocations, and deallocations but jemalloc does not support them!
-extern int64_t zero_size_data[1];
+extern int64_t     zero_size_data[1];
 static void *const ZeroSizePointer = reinterpret_cast<void *>(&zero_size_data);
 
 /**
@@ -132,7 +132,7 @@ static void *const ZeroSizePointer = reinterpret_cast<void *>(&zero_size_data);
  * unmaped/freed when the MemoryPool is destroyed.
  */
 class HugePageMemoryPool : public MemoryPool {
-public:
+  public:
     // The size of the pages to use. These are 1GiB huge pages by default
     static inline const size_t HUGE_PAGE_BITS = 30;
     static inline const size_t PAGE_SIZE      = 1 << HUGE_PAGE_BITS;
@@ -146,7 +146,9 @@ public:
     ~HugePageMemoryPool();
 
     Status allocate(size_t raw_size, size_t alignment, void **out) override;
-    Status allocate(size_t size, void **out) override { return allocate(size, DEFAULT_ALIGNMENT, out); }
+    Status allocate(size_t size, void **out) override {
+        return allocate(size, DEFAULT_ALIGNMENT, out);
+    }
 
     Status reallocate(size_t old_size, size_t new_size, size_t alignment, void **ptr) override;
 
@@ -162,16 +164,16 @@ public:
      */
     bool is_in_bounds(void *ptr, size_t size);
 
-    size_t bytes_allocated()       const override { return bytes_allocated_.load(); }
-    size_t total_bytes_allocated() const override { return total_bytes_allocated_.load(); }
-    size_t num_allocations()       const override { return num_allocs_.load(); }
-    size_t max_memory()            const override { return std::numeric_limits<size_t>::max(); }
-    std::string backend_name()     const override { return "HugePageMemoryPool"; }
+    size_t      bytes_allocated() const override { return bytes_allocated_.load(); }
+    size_t      total_bytes_allocated() const override { return total_bytes_allocated_.load(); }
+    size_t      num_allocations() const override { return num_allocs_.load(); }
+    size_t      max_memory() const override { return std::numeric_limits<size_t>::max(); }
+    std::string backend_name() const override { return "HugePageMemoryPool"; }
 
-    void *initial_address() const { return initial_address_; }
+    void  *initial_address() const { return initial_address_; }
     size_t total_capacity() const { return total_capacity_; }
 
-private:
+  private:
     /**
      * @return The number of huge pages with PAGE_SIZE currently available in the system.
      * Ensures this number is > 0
@@ -179,29 +181,26 @@ private:
     int get_number_of_available_huge_pages();
 
     // Call back functions that get called by jemalloc to manage the underlying memory
-    static void* huge_page_alloc(extent_hooks_t *hooks,
-                               void *new_addr,
-                               size_t size,
-                               size_t alignment,
-                               bool *zero,
-                               bool *commit,
-                               unsigned arena_ind);
+    static void *huge_page_alloc(extent_hooks_t *hooks, void *new_addr, size_t size,
+                                 size_t alignment, bool *zero, bool *commit, unsigned arena_ind);
 
-    static bool huge_page_dealloc(
-        extent_hooks_t *hooks, void *addr, size_t size, bool committed, unsigned arena_ind);
+    static bool huge_page_dealloc(extent_hooks_t *hooks, void *addr, size_t size, bool committed,
+                                  unsigned arena_ind);
 
-    static bool huge_page_decommit(
-        extent_hooks_t *hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind);
+    static bool huge_page_decommit(extent_hooks_t *hooks, void *addr, size_t size, size_t offset,
+                                   size_t length, unsigned arena_ind);
 
-    static bool huge_page_split_extend(
-        extent_hooks_t *hooks, void* addr, size_t size, size_t size_a, size_t size_b, bool committed, unsigned arena_ind);
+    static bool huge_page_split_extend(extent_hooks_t *hooks, void *addr, size_t size,
+                                       size_t size_a, size_t size_b, bool committed,
+                                       unsigned arena_ind);
 
-    static bool huge_page_merge_extend(
-        extent_hooks_t *hooks, void *addr_a, size_t size_a, void *addr_b, size_t size_b, bool committed, unsigned arena_ind);
+    static bool huge_page_merge_extend(extent_hooks_t *hooks, void *addr_a, size_t size_a,
+                                       void *addr_b, size_t size_b, bool committed,
+                                       unsigned arena_ind);
 
     // Explicit management of thread caches (or tcaches)
-    unsigned get_tcache_id_for_calling_thread();
-    ReaderWriterLock tcache_lock;
+    unsigned                                      get_tcache_id_for_calling_thread();
+    ReaderWriterLock                              tcache_lock;
     std::unordered_map<std::thread::id, unsigned> tcache_ids;
 
     // The index of the area we allocate
@@ -232,36 +231,37 @@ private:
     // How much capacity is remaining in the allocated huge page memory
     static inline size_t remaining_capacity = 0;
     // The next free address that can be returned to jemalloc
-    static inline void *next_free_addr = nullptr;
+    static inline void      *next_free_addr = nullptr;
     static inline std::mutex allocations_mutex_;
 };
 
 /**
- * This is here just if somebody needs to do big consecutive transfers using the C++ simulation and libstf.
- * This prevents overlapping addresses to be used by the SimpleMemoryAllocator.
- * That would be an issue with the C++ simulation as the C++ allocator will happily reuse freed memory
- * and the memory won't be unmapped from the simulation, causing a userMap request for an already mapped region to vivado that will crash it.
+ * This is here just if somebody needs to do big consecutive transfers using the C++ simulation and
+ * libstf. This prevents overlapping addresses to be used by the SimpleMemoryAllocator. That would
+ * be an issue with the C++ simulation as the C++ allocator will happily reuse freed memory and the
+ * memory won't be unmapped from the simulation, causing a userMap request for an already mapped
+ * region to vivado that will crash it.
  */
 class LinearAllocator {
-public:
+  public:
     explicit LinearAllocator(size_t size);
     ~LinearAllocator();
 
     bool allocate(size_t size, size_t alignment, void **out);
     void free(void *);
 
-private:
+  private:
     uint8_t *buffer_;
-    size_t size_;
-    size_t offset_;
+    size_t   size_;
+    size_t   offset_;
 };
 
 /**
- * Implements a naive memory pool that is only used for simulation purposes in systems where there 
+ * Implements a naive memory pool that is only used for simulation purposes in systems where there
  * are no huge pages.
  */
 class SimpleMemoryPool : public MemoryPool {
-public:
+  public:
     static inline const size_t PAGE_SIZE = 4096;
 
     // Note: This alignment is required by Coyote anyway
@@ -271,7 +271,9 @@ public:
     ~SimpleMemoryPool() override;
 
     Status allocate(size_t size, size_t alignment, void **out) override;
-    Status allocate(size_t size, void **out) override { return allocate(size, DEFAULT_ALIGNMENT, out); };
+    Status allocate(size_t size, void **out) override {
+        return allocate(size, DEFAULT_ALIGNMENT, out);
+    };
 
     Status reallocate(size_t old_size, size_t new_size, size_t alignment, void **ptr) override;
 
@@ -280,15 +282,15 @@ public:
 
     std::pair<void *, size_t> get_page_boundaries(const void *ptr) override;
 
-    size_t bytes_allocated()       const override { return bytes_allocated_.load(); };
-    size_t total_bytes_allocated() const override { return total_bytes_allocated_.load(); };
-    size_t num_allocations()       const override { return num_allocs_.load(); };
-    size_t max_memory()            const override { return std::numeric_limits<size_t>::max(); };
-    std::string backend_name()     const override { return "SimpleMemoryPool"; };
+    size_t      bytes_allocated() const override { return bytes_allocated_.load(); };
+    size_t      total_bytes_allocated() const override { return total_bytes_allocated_.load(); };
+    size_t      num_allocations() const override { return num_allocs_.load(); };
+    size_t      max_memory() const override { return std::numeric_limits<size_t>::max(); };
+    std::string backend_name() const override { return "SimpleMemoryPool"; };
 
-private:
+  private:
     // A map of all the pages that have been allocated and mapped for this thread
-	std::unordered_map<void *, size_t> allocated_buffers;
+    std::unordered_map<void *, size_t> allocated_buffers;
     // Recursive mutex to protect allocated_buffers (recursive to allow destructor to call free())
     mutable std::recursive_mutex allocated_buffers_mutex;
 
@@ -300,4 +302,4 @@ private:
     LinearAllocator linear_allocator_;
 };
 
-}  // namespace libstf
+} // namespace libstf

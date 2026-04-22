@@ -1,4 +1,4 @@
-#include "output_handle.hpp"
+#include <libstf/output_handle.hpp>
 
 namespace libstf {
 
@@ -75,10 +75,10 @@ bool OutputHandle::stream_has_more_output(stream_t stream_id) {
     // acquires the lock again and then continues execution.
     // It can be the case that there are multiple threads that are waiting for the next output
     // although only one more output is available!
-    // To prevent threads from blocking forever in such a case, we always notify all waiting threads!
-    // If we were to only notify one waiting thread, the others would wait forever.
-    // However, this means we need to check if there is actual data available after every notification.
-    // It can happen that this is not the case and that no more output exists!
+    // To prevent threads from blocking forever in such a case, we always notify all waiting
+    // threads! If we were to only notify one waiting thread, the others would wait forever.
+    // However, this means we need to check if there is actual data available after every
+    // notification. It can happen that this is not the case and that no more output exists!
     // -> We return a false in this case!
     // This implementation prevents any problems should the OutputHandle be called with multiple
     // threads. However, the most performant variant will be single-threaded calls!
@@ -97,10 +97,10 @@ bool OutputHandle::any_stream_has_more_output() {
     }
 
     // Like in the 'stream_has_more_output' function above, we wait for any new output memory while
-    // there is still any memory in flight. Read the above comment for an explanation why this works!
-    output_buffers_cv.wait(guard, [this] {
-        return any_stream_output_available() || !any_memory_in_flight();
-    });
+    // there is still any memory in flight. Read the above comment for an explanation why this
+    // works!
+    output_buffers_cv.wait(
+        guard, [this] { return any_stream_output_available() || !any_memory_in_flight(); });
 
     return any_stream_output_available();
 }
@@ -120,8 +120,8 @@ std::shared_ptr<Buffer> OutputHandle::get_next_stream_output(stream_t stream_id)
         return transferred_mem_front_to_shared_ptr(stream_id);
     }
 
-    // There is no output yet. While memory is still in flight, wait for more output to become 
-    // available. Return a nullptr if output never becomes available. This is the same mechanism as 
+    // There is no output yet. While memory is still in flight, wait for more output to become
+    // available. Return a nullptr if output never becomes available. This is the same mechanism as
     // in the two 'stream_has_more_output' and 'any_stream_has_more_output' functions above.
     output_buffers_cv.wait(guard, [&] {
         return !output_buffers[stream_id].empty() || finished_streams.test(stream_id);
@@ -136,9 +136,9 @@ std::shared_ptr<Buffer> OutputHandle::get_next_stream_output(stream_t stream_id)
 
 void OutputHandle::add_callback(std::function<void(stream_t)> callback) {
     auto previous_callback = this->callback;
-    this->callback = [previous_callback, callback](stream_t stream) {
+    this->callback         = [previous_callback, callback](stream_t stream) {
         if (previous_callback != nullptr) {
-            previous_callback (stream);
+            previous_callback(stream);
         }
 
         callback(stream);
@@ -156,7 +156,6 @@ bool OutputHandle::any_stream_output_available() const {
     }
     return false;
 }
-
 
 bool OutputHandle::any_memory_in_flight() const {
     for (stream_t i = 0; i < output_buffers.size(); i++) {

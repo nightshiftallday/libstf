@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "libstf/memory_pool.hpp"
+#include <libstf/memory_pool.hpp>
 
 namespace libstf {
 
@@ -18,11 +18,13 @@ struct BufferDeleter {
 
     void operator()(Buffer const *buffer) const;
 
-private:
+  private:
     std::shared_ptr<MemoryPool> memory_pool;
 };
 
-std::shared_ptr<Buffer> make_buffer(std::shared_ptr<MemoryPool> memory_pool, void *ptr, size_t size, size_t capacity);
-std::shared_ptr<Buffer> make_buffer(std::shared_ptr<MemoryPool> memory_pool, size_t size, Status &status);
+std::shared_ptr<Buffer> make_buffer(std::shared_ptr<MemoryPool> memory_pool, void *ptr, size_t size,
+                                    size_t capacity);
+std::shared_ptr<Buffer> make_buffer(std::shared_ptr<MemoryPool> memory_pool, size_t size,
+                                    Status &status);
 
 } // namespace libstf
