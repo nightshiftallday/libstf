@@ -71,8 +71,21 @@ install(EXPORT libstfTargets
 
 # Generate CMake package configuration files
 include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstfConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/libstfConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstf
+)
+
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/libstfConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion
+)
+
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/libstfConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/libstfConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstf
 )
