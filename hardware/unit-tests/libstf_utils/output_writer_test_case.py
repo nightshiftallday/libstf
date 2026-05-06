@@ -1,4 +1,4 @@
-# Small extension to the FPGATestCase and FPGAPerformanceTestCase classes with behavior specific to 
+# Extension to the FPGATestCase and FPGAPerformanceTestCase classes with behavior specific to
 # tests with an output writer.
 from coyote_test import (
     fpga_performance_test_case,
@@ -29,6 +29,8 @@ class OutputWriterMixin(ConfiguredTestCase):
         )
         # Streams who's output is expected on the card stream
         self.output_card_streams = []
+        # expected_output[stream] is a list of expected outputs, one per set_expected_output() call.
+        # Each entry corresponds to one acquire_output_handle() call on the software side.
         self.expected_output: Dict[int, List[Union[fpga_stream.Stream, bytearray]]] = {}
         self.card_thread = None
 
@@ -48,18 +50,17 @@ class OutputWriterMixin(ConfiguredTestCase):
         # Explicitly transfer this memory to the host!
         transfers = 0
         for card_stream in self.output_card_streams:
-            for vaddr, len in self.memory_manager.get_valid_memory_locations(
-                card_stream
-            ):
-                self.get_io_writer().invoke_transfer(
-                    io_writer.CoyoteOperator.LOCAL_SYNC,
-                    io_writer.CoyoteStreamType.STREAM_CARD,
-                    0,
-                    vaddr,
-                    len,
-                    True,
-                )
-                transfers += 1
+            for transfer_locations in self.memory_manager.get_transfers(card_stream):
+                for vaddr, len in transfer_locations:
+                    self.get_io_writer().invoke_transfer(
+                        io_writer.CoyoteOperator.LOCAL_SYNC,
+                        io_writer.CoyoteStreamType.STREAM_CARD,
+                        0,
+                        vaddr,
+                        len,
+                        True,
+                    )
+                    transfers += 1
 
         # Wait blocking for sync to finish
         if transfers > 0:
@@ -74,7 +75,7 @@ class OutputWriterMixin(ConfiguredTestCase):
     def simulate_fpga_non_blocking(self):
         self.overwrite_simulation_time(simulation_time.SimulationTime.till_finished())
         return super().simulate_fpga_non_blocking()
-    
+
     def finish_fpga_simulation(self):
         super().finish_fpga_simulation()
 
@@ -89,19 +90,20 @@ class OutputWriterMixin(ConfiguredTestCase):
         stream_type=io_writer.CoyoteStreamType.STREAM_HOST,
     ):
         """
-        Overwrite that uses FPGA-initiated transfers instead of host-initiated transfers.
+        Registers one expected transfer for the given stream, mirroring one
+        acquire_output_handle() call on the software side.
+
+        Calling this multiple times with the same stream registers multiple sequential
+        transfers, matched in order against the output produced by the FPGA.
         """
         assert stream_type != io_writer.CoyoteStreamType.STREAM_RDMA, (
             "RDMA streams are not supported atm"
         )
-        # Mark the stream as output stream in the memory manager
-        if not self.memory_manager.is_marked_as_output_stream(stream):
-            self.memory_manager.mark_stream_as_output_stream(stream)
-            # If the output is expected on the card stream, this needs
-            # to be handled differently.
-            # See the code in the 'all_done' callback function
+
+        if stream not in self.expected_output:
             if stream_type == io_writer.CoyoteStreamType.STREAM_CARD:
                 self.output_card_streams.append(stream)
+            self.expected_output[stream] = []
         else:
             # Assert that the stream type did not change
             if stream_type == io_writer.CoyoteStreamType.STREAM_CARD:
@@ -113,25 +115,8 @@ class OutputWriterMixin(ConfiguredTestCase):
                     "Stream type cannot change between outputs!"
                 )
 
-        # Store the expected output for the stream
-        if stream not in self.expected_output:
-            self.expected_output[stream] = []
-        # If the output is not empty, assert its of the same kind
-        if len(self.expected_output[stream]) > 0:
-            last_output = self.expected_output[stream][-1]
-            assert type(last_output) is type(output), (
-                "We only support one type of output per stream. "
-                + f"Stream {stream} got {type(last_output)} and {type(output)}."
-            )
-            if isinstance(last_output, fpga_stream.Stream):
-                assert (
-                    isinstance(output, fpga_stream.Stream)
-                    and output.stream_type() == last_output.stream_type()
-                ), (
-                    f"Got two Stream outputs with different kind for stream {stream}. "
-                    + f"Last output was {output.stream_type()}, new output is {last_output.stream_type()}"
-                )
         self.expected_output[stream].append(output)
+        self.memory_manager.add_transfer_for_stream(stream)
 
     def _set_expected_memory_content_for_streams(self) -> None:
         """
@@ -139,50 +124,53 @@ class OutputWriterMixin(ConfiguredTestCase):
         this method sets sets the expected memory content to assert the
         FPGA-initiated transfer output data
         """
-        # First: Merge all inputs to one bytearray per stream
-        bytearrays: Dict[int, bytearray] = {}
-        stream_types: Dict[int, Optional[fpga_stream.StreamType]] = {}
-        for stream in self.expected_output.keys():
-            bytearrays[stream] = bytearray()
-            # Set the stream types
-            stream_types[stream] = None
-            if isinstance(self.expected_output[stream][0], fpga_stream.Stream):
-                stream_types[stream] = self.expected_output[stream][0].stream_type()
+        for stream, expected_outputs in self.expected_output.items():
+            all_transfer_locations = self.memory_manager.get_transfers(stream)
 
-            for expected_out in self.expected_output[stream]:
-                bytearrays[stream] += self._convert_data_to_bytearray(
+            assert len(expected_outputs) == len(all_transfer_locations), (
+                f"Stream {stream}: expected {len(expected_outputs)} transfer(s) "
+                + f"but the FPGA produced {len(all_transfer_locations)} transfer(s)."
+            )
+
+            # Determine stream type from the first output
+            stream_type: Optional[fpga_stream.StreamType] = None
+            if isinstance(expected_outputs[0], fpga_stream.Stream):
+                stream_type = expected_outputs[0].stream_type()
+
+            for transfer_index, (expected_out, transfer_locations) in enumerate(
+                zip(expected_outputs, all_transfer_locations)
+            ):
+                expected_bytes = self._convert_data_to_bytearray(
                     expected_out, stream, "output"
                 )
 
-        # Now, set the expected output from the output data in the memory manager
-        for stream, content in bytearrays.items():
-            total_length = 0
-            for batch, (vaddr, length) in enumerate(
-                self.memory_manager.get_valid_memory_locations(stream)
-            ):
-                expected_output = content[total_length : total_length + length]
-                total_length += length
-                self.set_expected_data_at_memory_location(
-                    vaddr,
-                    expected_output,
-                    length,
-                    f"{stream};Batch-{batch}",
-                    stream_types[stream],
-                )
-            # Check that the expected and the actual output lengths match
-            if total_length != len(content):
-                if total_length < len(content):
-                    raise AssertionError(
-                        f"The FPGA sent less output than expected on stream {stream}. "
-                        + f"A total of {len(content)} bytes of output were expected, but "
-                        + f"only {total_length} bytes were received from the device."
+                total_length = 0
+                for batch, (vaddr, length) in enumerate(transfer_locations):
+                    chunk = expected_bytes[total_length : total_length + length]
+                    total_length += length
+                    self.set_expected_data_at_memory_location(
+                        vaddr,
+                        chunk,
+                        length,
+                        f"{stream};Transfer-{transfer_index};Batch-{batch}",
+                        stream_type,
                     )
-                elif total_length > len(content):
-                    raise AssertionError(
-                        f"The FPGA sent more output than expected on stream {stream}. "
-                        + f"A total of {len(content)} bytes of output were expected, but "
-                        + f"{total_length} bytes were received from the device."
-                    )
+
+                if total_length != len(expected_bytes):
+                    if total_length < len(expected_bytes):
+                        raise AssertionError(
+                            f"The FPGA sent less output than expected on stream {stream} "
+                            + f"transfer {transfer_index}. "
+                            + f"A total of {len(expected_bytes)} bytes of output were expected, "
+                            + f"but only {total_length} bytes were received from the device."
+                        )
+                    else:
+                        raise AssertionError(
+                            f"The FPGA sent more output than expected on stream {stream} "
+                            + f"transfer {transfer_index}. "
+                            + f"A total of {len(expected_bytes)} bytes of output were expected, "
+                            + f"but {total_length} bytes were received from the device."
+                        )
 
     def assert_simulation_output(self):
         # Assert the content is correct

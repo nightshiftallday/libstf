@@ -56,7 +56,7 @@ class FPGAOutputMemoryManager:
         all_done_callback = A function to call when all transfers have been completed.
             Very important: This function is run within the context of a interrupt, which is
             triggered from the io_writer output thread. Therefore, blocking in this function
-            will block any progress on reading the IO output. 
+            will block any progress on reading the IO output.
             Moreover, if defined, this function is responsible for marking all output as done.
         """
         assert isinstance(io_writer_inst, io_writer.SimulationIOWriter)
@@ -76,7 +76,7 @@ class FPGAOutputMemoryManager:
         self.global_config = global_config
         self.allocation_size = allocation_size
         self.transfer_size = transfer_size
-        
+
         self.all_done_callback = all_done_callback
         self.logger = logging.getLogger("MemoryManager")
 
@@ -85,10 +85,12 @@ class FPGAOutputMemoryManager:
         # All the allocations done for each stream. Key: stream_id.
         # Allocations are a dictionary of vaddr and size
         self.allocations: Dict[int, Dict[int, int]] = {}
-        # Same as the allocations but holds all the memory locations
-        # that actually received output data
-        self.valid_output_data: Dict[int, Dict[int, int]] = {}
-        self.stream_done: Dict[int, bool] = {}
+        # Per-stream list of transfers. Each transfer is a dict of {vaddr: size}
+        # for all memory locations written in that transfer.
+        # transfers[stream_id][transfer_index][vaddr] = bytes_written
+        self.transfers: Dict[int, List[Dict[int, int]]] = {}
+        # How many more last=1 interrupts are expected for each stream before it is fully done.
+        self.transfers_remaining: Dict[int, int] = {}
 
         # Register interrupt handler
         self.io_writer.register_interrupt_handler(self._interrupt_handler)
@@ -184,6 +186,12 @@ class FPGAOutputMemoryManager:
             last_size = self.allocations[stream][last_vaddr]
             return (last_vaddr, last_size)
 
+    def _current_transfer_index(self, stream_id: int) -> int:
+        """
+        Returns the index of the transfer currently being written into for the given stream.
+        """
+        return len(self.transfers[stream_id]) - 1
+
     def _handle_stream_last(self, stream_id: int, last: bool) -> None:
         """
         Handling depending on whether the stream send its last data
@@ -193,9 +201,22 @@ class FPGAOutputMemoryManager:
             self._add_allocation_for_stream(stream_id)
             return
 
-        # If this was the last one, check the other streams!
-        self.stream_done[stream_id] = True
-        if all(self.stream_done.values()):
+        # One transfer is complete for this stream.
+        self.transfers_remaining[stream_id] -= 1
+        self.logger.info(
+            f"Stream {stream_id} completed a transfer. "
+            + f"{self.transfers_remaining[stream_id]} transfer(s) remaining."
+        )
+
+        if self.transfers_remaining[stream_id] > 0:
+            # More transfers expected: open a new transfer slot and provide the FPGA with
+            # a fresh allocation for the next acquire_output_handle cycle.
+            self.transfers[stream_id].append({})
+            self._add_allocation_for_stream(stream_id)
+            return
+
+        # All transfers for this stream are done. Check whether all streams are done.
+        if all(r == 0 for r in self.transfers_remaining.values()):
             self.logger.info(
                 "All streams are done with transfers. Marking input as done."
             )
@@ -222,8 +243,9 @@ class FPGAOutputMemoryManager:
                 + f"{last_size} bytes, but transfer had {value.transfer_size()} bytes."
             )
 
-            # Add the vaddr and size to the valid allocations for this stream
-            self.valid_output_data[value.stream_id()][last_vaddr] = (
+            # Add the vaddr and size to the active transfer slot for this stream
+            current_idx = self._current_transfer_index(value.stream_id())
+            self.transfers[value.stream_id()][current_idx][last_vaddr] = (
                 value.transfer_size()
             )
 
@@ -233,43 +255,40 @@ class FPGAOutputMemoryManager:
     #
     # Public methods
     #
-    def get_valid_memory_locations(self, stream_id: int) -> List[Tuple[int, int]]:
+    def get_transfers(self, stream_id: int) -> List[List[Tuple[int, int]]]:
         """
-        Returns a list of pairs of vaddr and size that mark all the memory locations
-        where valid output for the given stream is stored.
+        Returns a list of transfers for the given stream. Each transfer is itself a list
+        of (vaddr, size) pairs in the order they were written to by the FPGA.
 
-        The order of the list determines the order in which the memory locations where written to.
+        get_transfers(stream)[transfer_index] gives all the memory locations
+        written during that particular acquire_output_handle cycle.
         """
         assert stream_id < MAX_NUMBER_STREAMS
         with self.allocation_lock:
-            if stream_id in self.valid_output_data:
-                return self.valid_output_data[stream_id].items()
-
+            if stream_id in self.transfers:
+                return [list(t.items()) for t in self.transfers[stream_id]]
             return []
 
-    def is_marked_as_output_stream(self, stream_id: int) -> bool:
+    def add_transfer_for_stream(self, stream_id: int):
         """
-        Returns whether the given stream was already marked as a
-        output stream
-        """
-        with self.allocation_lock:
-            return stream_id in self.valid_output_data
+        Registers one expected acquire_output_handle() cycle on the given stream.
+        Call this once per acquire_output_handle() call on the software side.
 
-    def mark_stream_as_output_stream(self, stream_id: int):
-        """
-        Marks this stream as a stream where output should be expected.
-        Performs first memory allocation for the given stream.
+        On the first call for a stream, the stream is initialised and the first memory
+        allocation is sent to the FPGA. On subsequent calls, the transfer counter is
+        incremented; the matching allocation is sent by _handle_stream_last when the
+        previous transfer's last=1 interrupt arrives.
         """
         assert stream_id < MAX_NUMBER_STREAMS
         with self.allocation_lock:
-            assert (
-                stream_id not in self.allocations
-                and stream_id not in self.valid_output_data
-            ), (
-                f"Could not mark stream with id {stream_id} for output as it was already marked"
+            if stream_id not in self.transfers:
+                self.allocations[stream_id] = {}
+                self.transfers[stream_id] = [{}]
+                self.transfers_remaining[stream_id] = 1
+                self._add_allocation_for_stream(stream_id)
+            else:
+                self.transfers_remaining[stream_id] += 1
+            self.logger.info(
+                f"Added transfer for stream {stream_id}. "
+                + f"Total transfers expected: {self.transfers_remaining[stream_id]}"
             )
-
-            self.allocations[stream_id] = {}
-            self.valid_output_data[stream_id] = {}
-            self.stream_done[stream_id] = False
-            self._add_allocation_for_stream(stream_id)
