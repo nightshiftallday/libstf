@@ -21,14 +21,26 @@ module Demultiplexer #(
     input logic [N_BITS - 1: 0] stream_select,
 
     output DATA_TYPE    o_data [N_STREAMS],
-    input logic         o_ready [N_STREAMS],
-    output logic        o_valid [N_STREAMS]
+    input  logic        o_ready[N_STREAMS],
+    output logic        o_valid[N_STREAMS]
 );
 
 `RESET_RESYNC // Reset pipelining
 
+// We introduced this logic because the stream_select can in theory go out of range which leads to 
+// undefined behaviour of i_ready
+logic[2**N_BITS - 1:0] o_ready_padded;
+
+always_comb begin
+    o_ready_padded = '0;
+
+    for (int i = 0; i < N_STREAMS; i++) begin
+        o_ready_padded[i] = o_ready[i];
+    end
+end
+
 // Ready-chaining from the correct output stream
-assign i_ready = o_ready[stream_select];
+assign i_ready = o_ready_padded[stream_select];
 
 // Assign the input data to the right output stream
 generate
@@ -36,16 +48,16 @@ generate
         always_ff @(posedge clk) begin
             if (reset_synced == 1'b0) begin
                 o_valid[out_stream] <= 0;
-            end else if (i_ready & stream_select == out_stream) begin
+            end else if (i_ready && stream_select == out_stream) begin
                 if (i_valid) begin
-                    o_data[out_stream]   <= i_data;
-                    o_valid[out_stream]  <= 1;
+                    o_data[out_stream]  <= i_data;
+                    o_valid[out_stream] <= 1'b1;
                 end else begin 
-                    o_valid[out_stream]  <= 0;
+                    o_valid[out_stream] <= 1'b0;
                 end
             end else begin
-                if (o_ready[out_stream] & stream_select != out_stream) begin
-                    o_valid[out_stream]  <= 0;
+                if (o_ready[out_stream] && stream_select != out_stream) begin
+                    o_valid[out_stream] <= 1'b0;
                 end
             end
         end
