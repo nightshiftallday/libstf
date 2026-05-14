@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 project(libstf)
 
-# NOTE: This CMakeLists.txt is only here because of VSCode
+# NOTE: This CMakeLists.txt exists to make VSCode aware of the software library and examples
 
 # Dependencies
-add_subdirectory(coyote/sw coyote)
+if(NOT TARGET Coyote)
+    find_package(Coyote QUIET)
+    if(NOT Coyote_FOUND)
+        add_subdirectory(coyote/sw coyote)
+    endif()
+endif()
 
 # libSTF
 add_subdirectory(software)
