@@ -26,7 +26,7 @@ logic[DEPTH - 1:0] ram_valid, n_ram_valid;
 
 logic[SERIAL_WIDTH - 1:0] next, n_next, next_succ;
 
-data_i #(data_t) n_out();
+data_i #(data_t) n_out(clk, rst_n);
 
 assign in.ready = 1'b1;
 
@@ -97,5 +97,9 @@ always_comb begin
         n_out.valid = out.valid;
     end
 end
+
+// Assign ready to silence assertion that ready cannot be undefined. Needs to be high so we do not 
+// get in trouble with with stable assertion of the interface.
+assign n_out.ready = 1'b1;
 
 endmodule

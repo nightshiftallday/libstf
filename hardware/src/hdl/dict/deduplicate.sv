@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 
+// TODO: Replace this interface with a tagged data stream
 interface duplicate_i #(
     parameter NUM_ELEMENTS
 );
@@ -39,8 +40,8 @@ localparam int unsigned N_STAGES = 4;
 //1 + 2 + 3 + 4 + 5 + 6 + 7 = 28 comparisons. Similarly for the remaining stages.
 localparam int IDX_BOUNDARIES[N_STAGES+1] = '{1, 8, 11, 14, 16};
 
-ndata_i #(data_t, NUM_ELEMENTS) tmp[N_STAGES:0] ();
-duplicate_i #(NUM_ELEMENTS) tmp_mask[N_STAGES:0] (); // the valid signal is unused
+ndata_i     #(data_t, NUM_ELEMENTS) tmp[N_STAGES:0](clk, rst_n);
+duplicate_i #(NUM_ELEMENTS)         tmp_mask[N_STAGES:0] (); // the valid signal is unused
 
 assign tmp[0].data = in.data;
 assign tmp[0].valid = in.valid;

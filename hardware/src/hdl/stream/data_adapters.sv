@@ -27,7 +27,7 @@ localparam AXI_ELEMENT_SIZE = AXI_ELEMENT_WIDTH / 8;
 `ASSERT_ELAB(AXI_WIDTH == AXI_ELEMENT_WIDTH * NUM_AXI_ELEMENTS)
 `ASSERT_ELAB($bits(data_t) <= AXI_ELEMENT_WIDTH)
 
-ndata_i #(data_t, NUM_AXI_ELEMENTS) internal();
+ndata_i #(data_t, NUM_AXI_ELEMENTS) internal(clk, rst_n);
 
 NDataWidthConverter #(
     .data_t(data_t)

@@ -27,9 +27,9 @@ typedef logic[NUM_ELEMENTS - 1:0] mask_t;
 
 AXI4S axi_host_recv_0(.aclk(clk), .aresetn(rst_n));
 
-ndata_i #(data32_t, NUM_ELEMENTS) sorted_seq(.*);
-data_i  #(mask_t)                 bitmask(.*);
-ndata_i #(mask_t, 1)              bitmask_ndata(.*);
+ndata_i #(data32_t, NUM_ELEMENTS) sorted_seq(clk, rst_n);
+data_i  #(mask_t)                 bitmask(clk, rst_n);
+ndata_i #(mask_t, 1)              bitmask_ndata(clk, rst_n);
 
 AXI4S bitmask_collected(.aclk(clk), .aresetn(rst_n));
 

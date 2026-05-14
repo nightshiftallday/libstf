@@ -14,8 +14,8 @@ module AXIMultiplexer #(
     AXI4S.m out
 );
 
-ndata_i #(data8_t, AXI_DATA_BITS / 8) in_data[NUM_STREAMS]();
-ndata_i #(data8_t, AXI_DATA_BITS / 8) out_data();
+ndata_i #(data8_t, AXI_DATA_BITS / 8) in_data[NUM_STREAMS](clk, rst_n);
+ndata_i #(data8_t, AXI_DATA_BITS / 8) out_data(clk, rst_n);
 
 for (genvar I = 0; I < NUM_STREAMS; I++) begin
     assign in_data[I].data  = in[I].tdata;

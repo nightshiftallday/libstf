@@ -81,7 +81,7 @@ else $fatal(1, "Buffer size (%0d) must be > 0!", buffer.data.size);
 `endif
 
 // -- Configuration --------------------------------------------------------------------------------
-ready_valid_i #(buffer_t) buffer();
+ready_valid_i #(buffer_t) buffer(clk, reset_synced);
 `CONFIG_SIGNALS_TO_INTF(mem_config.buffer, buffer)
 
 // -- Input logic ----------------------------------------------------------------------------------
@@ -91,10 +91,10 @@ logic curr_len_valid;
 logic curr_len_ready;
 
 // Suppress null data beats. Otherwise, the last interrupt is not correctly triggered
-AXI4S input_data_no_nulls(.aclk(clk), .aresetn(rst_n));
+AXI4S input_data_no_nulls(.aclk(clk), .aresetn(reset_synced));
 AXINullBeatSuppressor inst_null_beat_suppressor (
     .clk(clk),
-    .rst_n(rst_n),
+    .rst_n(reset_synced),
 
     .in(input_data),
     .out(input_data_no_nulls)

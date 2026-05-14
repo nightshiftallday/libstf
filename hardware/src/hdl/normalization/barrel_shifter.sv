@@ -22,7 +22,7 @@ module BarrelShifter #(
 localparam int PIPELINE_STAGES = $clog2(NUM_ELEMENTS) + 1;
 localparam int REGISTER_GAP = (REGISTER_LEVELS == 0 ? PIPELINE_STAGES + 2 : PIPELINE_STAGES / REGISTER_LEVELS);
 
-ndata_i #(data_t, NUM_ELEMENTS) stages[PIPELINE_STAGES]();
+ndata_i #(data_t, NUM_ELEMENTS) stages[PIPELINE_STAGES](clk, rst_n);
 logic[OFFSET_WIDTH - 1:0] offset_stages[PIPELINE_STAGES];
 
 // Input assignments

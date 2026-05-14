@@ -33,10 +33,10 @@ typedef struct packed {
 } hasher_data_t;
 
 // -- Signals --------------------------------------------------------------------------------------
-ndata_i   #(data_t, NUM_ELEMENTS)                    ndata_in();
-ndata_i   #(hasher_data_t, NUM_ELEMENTS)             hasher_in();
-ntagged_i #(hasher_data_t, HASH_WIDTH, NUM_ELEMENTS) hasher_out();
-ndata_i   #(data_t, NUM_ELEMENTS)                    ndata_out();
+ndata_i   #(data_t, NUM_ELEMENTS)                    ndata_in(clk, rst_n);
+ndata_i   #(hasher_data_t, NUM_ELEMENTS)             hasher_in(clk, rst_n);
+ntagged_i #(hasher_data_t, HASH_WIDTH, NUM_ELEMENTS) hasher_out(clk, rst_n);
+ndata_i   #(data_t, NUM_ELEMENTS)                    ndata_out(clk, rst_n);
 
 // -- Logic ----------------------------------------------------------------------------------------
 AXI4S axi_host_recv(.aclk(clk), .aresetn(rst_n)), axi_host_send(.aclk(clk), .aresetn(rst_n));

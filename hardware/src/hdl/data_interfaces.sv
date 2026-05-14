@@ -1,7 +1,12 @@
 import libstf::*;
 
+`include "libstf_macros.svh"
+
 interface valid_i #(
     parameter type data_t
+) (
+    input logic clk,
+    input logic rst_n
 );
     data_t data;
     logic  valid;
@@ -19,10 +24,18 @@ interface valid_i #(
     modport s (
         input data, valid
     );
+
+`ifndef SYNTHESIS
+    `STF_ASSERT_NOT_UNDEFINED(valid)
+`endif
+
 endinterface
 
 interface ready_valid_i #(
     parameter type data_t
+) (
+    input logic clk,
+    input logic rst_n
 );
     data_t data;
     logic  valid;
@@ -48,10 +61,20 @@ interface ready_valid_i #(
         input  data, valid,
         output ready
     );
+
+`ifndef SYNTHESIS
+    `STF_ASSERT_STABLE(data, valid, ready)
+    `STF_ASSERT_NOT_UNDEFINED(valid)
+    `STF_ASSERT_NOT_UNDEFINED(ready)
+`endif
+
 endinterface
 
 interface data_i #(
     parameter type data_t
+) (
+    input logic clk,
+    input logic rst_n
 );
     data_t data;
     logic  keep;
@@ -81,11 +104,23 @@ interface data_i #(
         input  data, keep, last, valid,
         output ready
     );
+
+`ifndef SYNTHESIS
+    `STF_ASSERT_SIGNAL_STABLE(data)
+    `STF_ASSERT_SIGNAL_STABLE(keep)
+    `STF_ASSERT_SIGNAL_STABLE(last)
+    `STF_ASSERT_NOT_UNDEFINED(valid)
+    `STF_ASSERT_NOT_UNDEFINED(ready)
+`endif
+
 endinterface
 
 interface ndata_i #(
     parameter type data_t,
     parameter NUM_ELEMENTS
+) (
+    input logic clk,
+    input logic rst_n
 );
     data_t[NUM_ELEMENTS - 1:0] data;
     logic[NUM_ELEMENTS - 1:0]  keep;
@@ -115,11 +150,23 @@ interface ndata_i #(
         input  data, keep, last, valid,
         output ready
     );
+
+`ifndef SYNTHESIS
+    `STF_ASSERT_SIGNAL_STABLE(data)
+    `STF_ASSERT_SIGNAL_STABLE(keep)
+    `STF_ASSERT_SIGNAL_STABLE(last)
+    `STF_ASSERT_NOT_UNDEFINED(valid)
+    `STF_ASSERT_NOT_UNDEFINED(ready)
+`endif
+
 endinterface
 
 interface tagged_i #(
     parameter type data_t,
     parameter TAG_WIDTH
+) (
+    input logic clk,
+    input logic rst_n
 );
     data_t                 data;
     logic[TAG_WIDTH - 1:0] tag;
@@ -151,12 +198,25 @@ interface tagged_i #(
         input  data, tag, keep, last, valid,
         output ready
     );
+
+`ifndef SYNTHESIS
+    `STF_ASSERT_SIGNAL_STABLE(data)
+    `STF_ASSERT_SIGNAL_STABLE(tag)
+    `STF_ASSERT_SIGNAL_STABLE(keep)
+    `STF_ASSERT_SIGNAL_STABLE(last)
+    `STF_ASSERT_NOT_UNDEFINED(valid)
+    `STF_ASSERT_NOT_UNDEFINED(ready)
+`endif
+
 endinterface
 
 interface ntagged_i #(
     parameter type data_t,
     parameter TAG_WIDTH,
     parameter NUM_ELEMENTS
+) (
+    input logic clk,
+    input logic rst_n
 );
     typedef logic[TAG_WIDTH - 1:0] tag_t;
 
@@ -190,10 +250,23 @@ interface ntagged_i #(
         input  data, tag, keep, last, valid,
         output ready
     );
+
+`ifndef SYNTHESIS
+    `STF_ASSERT_SIGNAL_STABLE(data)
+    `STF_ASSERT_SIGNAL_STABLE(tag)
+    `STF_ASSERT_SIGNAL_STABLE(keep)
+    `STF_ASSERT_SIGNAL_STABLE(last)
+    `STF_ASSERT_NOT_UNDEFINED(valid)
+    `STF_ASSERT_NOT_UNDEFINED(ready)
+`endif
+
 endinterface
 
 interface typed_ndata_i #(
     parameter DATABEAT_SIZE
+) (
+    input logic clk,
+    input logic rst_n
 );
     data8_t[DATABEAT_SIZE - 1:0] data;
     type_t                       typ; // Type cannot be used as it's a keyword in SystemVerilog
@@ -225,4 +298,14 @@ interface typed_ndata_i #(
         input  data, typ, keep, last, valid,
         output ready
     );
+
+`ifndef SYNTHESIS
+    `STF_ASSERT_SIGNAL_STABLE(data)
+    `STF_ASSERT_SIGNAL_STABLE(typ)
+    `STF_ASSERT_SIGNAL_STABLE(keep)
+    `STF_ASSERT_SIGNAL_STABLE(last)
+    `STF_ASSERT_NOT_UNDEFINED(valid)
+    `STF_ASSERT_NOT_UNDEFINED(ready)
+`endif
+
 endinterface

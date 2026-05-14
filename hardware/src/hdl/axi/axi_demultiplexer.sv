@@ -19,8 +19,8 @@ module AXIDemultiplexer #(
     AXI4S.m out[NUM_STREAMS]
 );
 
-ndata_i #(data8_t, AXI_DATA_BITS / 8) in_data();
-ndata_i #(data8_t, AXI_DATA_BITS / 8) out_data[NUM_STREAMS]();
+ndata_i #(data8_t, AXI_DATA_BITS / 8) in_data(clk, rst_n);
+ndata_i #(data8_t, AXI_DATA_BITS / 8) out_data[NUM_STREAMS](clk, rst_n);
 
 assign in_data.data  = in.tdata;
 assign in_data.keep  = in.tkeep;

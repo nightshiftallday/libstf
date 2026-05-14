@@ -31,15 +31,15 @@ assign rst_n = aresetn;
 AXI4S axi_host_recv_0(.aclk(clk), .aresetn(rst_n));
 AXI4S axi_host_recv_1(.aclk(clk), .aresetn(rst_n));
 
-ndata_i #(data32_t, NUM_IDS) dict_ids();
-typed_ndata_i #(DATABEAT_SIZE) dict_values();
-typed_ndata_i #(DATABEAT_SIZE) dict_out();
+ndata_i #(data32_t, NUM_IDS) dict_ids(clk, rst_n);
+typed_ndata_i #(DATABEAT_SIZE) dict_values(clk, rst_n);
+typed_ndata_i #(DATABEAT_SIZE) dict_out(clk, rst_n);
 
 AXI4S axi_out[N_STRM_AXI](.aclk(clk), .aresetn(rst_n));
 
 // -- Configuration -------------------------------------------------------------------------------
-write_config_i write_configs[1](.*);
-read_config_i  read_configs [1](.*);
+write_config_i write_configs[1](clk, rst_n);
+read_config_i  read_configs [1](clk, rst_n);
 GlobalConfig #(
     .SYSTEM_ID(0),
     .NUM_CONFIGS(1),
@@ -54,7 +54,7 @@ GlobalConfig #(
     .read_configs(read_configs)
 );
 
-stream_config_i stream_config[1](.*);
+stream_config_i stream_config[1](clk, rst_n);
 StreamConfig #(
     .NUM_STREAMS(1)
 ) inst_stream_config (
@@ -67,8 +67,7 @@ StreamConfig #(
     .out(stream_config)
 );
 
-ready_valid_i #(type_t) data_type();
-
+ready_valid_i #(type_t) data_type(clk, rst_n);
 `CONFIG_SIGNALS_TO_INTF(stream_config[0].data_type, data_type)
 
 assign stream_config[0].select_ready = 1'b1;

@@ -40,9 +40,9 @@ ConfigReadRegisterFile #(
 );
 
 // -- Write ----------------------------------------------------------------------------------------
-ready_valid_i #(logic) flush_buffers();
+ready_valid_i #(logic) flush_buffers(clk, reset_synced);
 for (genvar I = 0; I < NUM_STREAMS; I++) begin
-    ready_valid_i #(buffer_t) buffer();
+    ready_valid_i #(buffer_t) buffer(clk, reset_synced);
 
     ConfigWriteFIFO #(I, MAXIMUM_NUM_ENQUEUED_BUFFERS, buffer_t) inst_buffer_fifo (clk, reset_synced, write_config, buffer);
 

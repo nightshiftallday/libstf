@@ -83,7 +83,7 @@ module AXINullBeatSuppressor #(
 
 localparam NUM_ELEMENTS = AXI4S_DATA_BITS / 8;
 
-ndata_i #(data8_t, NUM_ELEMENTS) ndata_in(), ndata_out();
+ndata_i #(data8_t, NUM_ELEMENTS) ndata_in(clk, rst_n), ndata_out(clk, rst_n);
 
 assign ndata_in.data  = in.tdata;
 assign ndata_in.keep  = in.tkeep;

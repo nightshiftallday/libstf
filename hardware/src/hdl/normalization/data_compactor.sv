@@ -18,7 +18,7 @@ localparam PIPELINE_STAGES = NUM_ELEMENTS + 1;
 localparam COUNTER_WIDTH = $clog2(NUM_ELEMENTS);
 localparam REGISTER_GAP = (REGISTER_LEVELS == 0 ? PIPELINE_STAGES + 2 : PIPELINE_STAGES / REGISTER_LEVELS);
 
-ndata_i #(data_t, NUM_ELEMENTS) stages[PIPELINE_STAGES]();
+ndata_i #(data_t, NUM_ELEMENTS) stages[PIPELINE_STAGES](clk, rst_n);
 logic[COUNTER_WIDTH - 1:0] counter_stages[PIPELINE_STAGES];
 
 // Input assignments

@@ -22,7 +22,8 @@ module TypedDictionary #(
 
 `ASSERT_ELAB(DATABEAT_SIZE == NUM_ELEMENTS * TYPED_DICTIONARY_DATA_SIZE)
 
-valid_i #(type_t) typ ();
+valid_i #(type_t) typ(clk, rst_n);
+
 always_ff @(posedge clk) begin
     if (rst_n == 1'b0) begin
         typ.valid <= 0;
@@ -32,9 +33,9 @@ always_ff @(posedge clk) begin
     end
 end
 
-ndata_i #(typed_dictionary_data_t, NUM_ELEMENTS) dictionary_in_values ();
-ndata_i #(id_t, NUM_ELEMENTS) dictionary_in_ids ();
-ndata_i #(typed_dictionary_data_t, NUM_ELEMENTS) dictionary_out ();
+ndata_i #(typed_dictionary_data_t, NUM_ELEMENTS) dictionary_in_values(clk, rst_n);
+ndata_i #(id_t,                    NUM_ELEMENTS) dictionary_in_ids(clk, rst_n);
+ndata_i #(typed_dictionary_data_t, NUM_ELEMENTS) dictionary_out(clk, rst_n);
 
 assign in_values.ready = dictionary_in_values.ready;
 generate

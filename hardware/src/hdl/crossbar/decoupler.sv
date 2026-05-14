@@ -14,7 +14,7 @@ module Decoupler #(
     data_i.m  out[NUM_ELEMENTS] // #(data_t)
 );
 
-data_i #(data_t) n_out[NUM_ELEMENTS]();
+data_i #(data_t) n_out[NUM_ELEMENTS](clk, rst_n);
 logic[NUM_ELEMENTS - 1:0] out_valid, out_ready;
 
 assign in.ready = ~|out_valid || &out_ready;
@@ -49,6 +49,10 @@ for (genvar I = 0; I < NUM_ELEMENTS; I++) begin
             n_out[I].valid = out[I].valid;
         end
     end
+
+    // Assign ready to silence assertion that ready cannot be undefined. Needs to be high so we do not 
+    // get in trouble with with stable assertion of the interface.
+    assign n_out[I].ready = 1'b1;
 end
 
 endmodule

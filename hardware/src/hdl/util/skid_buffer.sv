@@ -10,7 +10,7 @@ module SkidBuffer #(
     ready_valid_i.m out // #(data_t) 
 );
 
-ready_valid_i #(data_t) tmp(), over();
+ready_valid_i #(data_t) tmp(clk, rst_n), over(clk, rst_n);
 
 always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -36,6 +36,11 @@ always_ff @(posedge clk) begin
     end     
 end
 
+// Assign ready to silence assertion that ready cannot be undefined. Needs to be high so we do not 
+// get in trouble with with stable assertion of the interface.
+assign tmp.ready  = 1'b1;
+assign over.ready = 1'b1;
+
 assign in.ready = !tmp.valid || !over.valid;
 
 assign out.data  = over.valid ? over.data : tmp.data;
@@ -59,7 +64,7 @@ typedef struct packed {
     logic  last;
 } tmp_t;
 
-ready_valid_i #(tmp_t) skid_in(), skid_out();
+ready_valid_i #(tmp_t) skid_in(clk, rst_n), skid_out(clk, rst_n);
 
 assign skid_in.data.data = in.data;
 assign skid_in.data.keep = in.keep;
@@ -102,7 +107,7 @@ typedef struct packed {
     logic                      last;
 } tmp_t;
 
-ready_valid_i #(tmp_t) skid_in(), skid_out();
+ready_valid_i #(tmp_t) skid_in(clk, rst_n), skid_out(clk, rst_n);
 
 assign skid_in.data.data = in.data;
 assign skid_in.data.keep = in.keep;
@@ -144,8 +149,7 @@ typedef struct packed {
     logic[TAG_WIDTH - 1:0] tag;
 } tmp_t;
 
-data_i #(tmp_t) data_in();
-data_i #(tmp_t) data_out();
+data_i #(tmp_t) data_in(clk, rst_n), data_out(clk, rst_n);
 
 assign data_in.data.data = in.data;
 assign data_in.data.tag  = in.tag;
@@ -194,7 +198,7 @@ typedef struct packed {
     logic                      last;
 } tmp_t;
 
-ready_valid_i #(tmp_t) skid_in(), skid_out();
+ready_valid_i #(tmp_t) skid_in(clk, rst_n), skid_out(clk, rst_n);
 
 assign skid_in.data.data = in.data;
 assign skid_in.data.tag  = in.tag;
@@ -238,7 +242,7 @@ typedef struct packed {
     logic                            tlast;
 } tmp_t;
 
-ready_valid_i #(tmp_t) skid_in(), skid_out();
+ready_valid_i #(tmp_t) skid_in(clk, rst_n), skid_out(clk, rst_n);
 
 assign skid_in.data.tdata = in.tdata;
 assign skid_in.data.tkeep = in.tkeep;
@@ -281,7 +285,7 @@ typedef struct packed {
     logic                      last;
 } tmp_t;
 
-ready_valid_i #(tmp_t) skid_in(), skid_out();
+ready_valid_i #(tmp_t) skid_in(clk, rst_n), skid_out(clk, rst_n);
 
 assign skid_in.data.data = in.data;
 assign skid_in.data.typ  = in.typ;

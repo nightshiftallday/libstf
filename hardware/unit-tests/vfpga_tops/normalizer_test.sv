@@ -24,8 +24,8 @@ assign rst_n = aresetn;
 
 // -- Interfaces -----------------------------------------------------------------------------------
 AXI4S #(.AXI4S_DATA_BITS(512)) axis_host_recv_0(.aclk(clk), .aresetn(rst_n));
-ndata_i #(data8_t, NUM_ELEMENTS) normalizer_in();
-ndata_i #(data8_t, NUM_ELEMENTS) normalizer_out();
+ndata_i #(data8_t, NUM_ELEMENTS) normalizer_in(clk, rst_n);
+ndata_i #(data8_t, NUM_ELEMENTS) normalizer_out(clk, rst_n);
 AXI4S #(.AXI4S_DATA_BITS(512)) axis_host_send_0(.aclk(clk), .aresetn(rst_n));
 
 // -- Input wiring ---------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ NDataToAXI #(
     .NUM_ELEMENTS(NUM_ELEMENTS)
 ) inst_ndata_to_axi (
     .clk(clk),
-    .rst_n(reset_synced),
+    .rst_n(rst_n),
 
     .in(normalizer_out),
     .out(axis_host_send_0)

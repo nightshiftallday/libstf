@@ -27,7 +27,7 @@ localparam integer TAG_WIDTH = in.TAG_WIDTH;
 logic[NUM_STREAMS - 1:0] internal_ready;
 logic[NUM_STREAMS - 1:0] seen, n_seen;
 
-tagged_i #(data_t, TAG_WIDTH) internal[NUM_STREAMS][NUM_SKID_STAGES + 1]();
+tagged_i #(data_t, TAG_WIDTH) internal[NUM_STREAMS][NUM_SKID_STAGES + 1](clk, reset_synced);
 
 assign in.ready = &(seen | internal_ready);
 

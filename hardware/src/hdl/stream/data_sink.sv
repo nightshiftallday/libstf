@@ -9,7 +9,7 @@
  */
 module DataSink #(
     parameter integer ID,
-    parameter integer ENABLE_SKID_BUFFER = 1
+    parameter integer EN_SKID_BUFFER = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -29,7 +29,7 @@ logic enable_sink_valid;
 
 logic was_last_data_beat;
 
-ndata_i #(data_t, NUM_ELEMENTS) internal();
+ndata_i #(data_t, NUM_ELEMENTS) internal(clk, rst_n);
 
 always_ff @(posedge clk) begin
     if (rst_n == 1'b0) begin
@@ -58,7 +58,7 @@ assign internal.keep  = in.keep;
 assign internal.last  = in.last;
 assign internal.valid = enable_sink_valid && !enable_sink ? in.valid : 1'b0;
 
-generate if (ENABLE_SKID_BUFFER) begin
+generate if (EN_SKID_BUFFER) begin
     NDataSkidBuffer #(data_t, NUM_ELEMENTS) inst_skid_buffer (.clk(clk), .rst_n(rst_n), .in(internal), .out(out));
 end else begin
     `DATA_ASSIGN(internal, out)

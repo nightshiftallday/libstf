@@ -37,9 +37,9 @@ ConfigReadRegisterFile #(
 
 // -- Write ----------------------------------------------------------------------------------------
 for (genvar I = 0; I < NUM_STREAMS; I++) begin
-    ready_valid_i #(stream_conf_t) conf_reg();
-    ready_valid_i #(select_t)      select();
-    ready_valid_i #(type_t)        data_type();
+    ready_valid_i #(stream_conf_t) conf_reg(clk, reset_synced);
+    ready_valid_i #(select_t)      select(clk, reset_synced);
+    ready_valid_i #(type_t)        data_type(clk, reset_synced);
 
     ConfigWriteFIFO #(I, MAX_OUTSTANDING_STREAMS, stream_conf_t) inst_write_fifo (clk, reset_synced, write_config, conf_reg);
 

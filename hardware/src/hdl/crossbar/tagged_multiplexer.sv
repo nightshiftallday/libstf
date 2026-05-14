@@ -29,7 +29,7 @@ localparam FORWARD = 1;
 
 // -- 1. stage: Tag matching to simplify multiplexing logic slightly -------------------------------
 logic[NUM_INPUTS - 1:0] tag_matches;
-tagged_i #(data_t, 1) matched[NUM_INPUTS](), mux_in[NUM_INPUTS]();
+tagged_i #(data_t, 1) matched[NUM_INPUTS](clk, rst_n), mux_in[NUM_INPUTS](clk, reset_synced);
 
 for (genvar I = 0; I < NUM_INPUTS; I++) begin
     assign tag_matches[I] = in[I].tag == ID;
@@ -41,10 +41,14 @@ for (genvar I = 0; I < NUM_INPUTS; I++) begin
         matched[I].tag   = tag_matches[I];
         matched[I].keep  = in[I].keep;
         matched[I].last  = in[I].last;
-        matched[I].valid = in[I].valid;
+        matched[I].valid = 1'b0;
 
-        if (((LAST_HANDLING == WAIT_ALL && in[I].last) || tag_matches[I]) && !matched[I].ready) begin
-            in[I].ready = 1'b0;
+        if ((LAST_HANDLING == WAIT_ALL && in[I].last) || tag_matches[I]) begin
+            matched[I].valid = in[I].valid;
+
+            if (!matched[I].ready) begin
+                in[I].ready = 1'b0;
+            end
         end
     end
 
@@ -53,14 +57,14 @@ end
 
 // -- 2. stage: Multiplex round robin --------------------------------------------------------------
 logic[NUM_INPUTS - 1:0] tags, is_selected;
-data_i #(data_t) selected();
+data_i #(data_t) selected(clk, rst_n);
 
 data_t mux_in_data[NUM_INPUTS];
 logic[NUM_INPUTS - 1:0] mux_in_keep, mux_in_last, mux_in_valid, mux_in_ready;
 
 logic[NUM_INPUTS - 1:0] last_seen, n_last_seen;
 
-data_i #(data_t) mux_out(), n_mux_out();
+data_i #(data_t) mux_out(clk, rst_n), n_mux_out(clk, rst_n);
 
 for(genvar I = 0; I < NUM_INPUTS; I++) begin
     assign mux_in[I].ready = mux_in_ready[I]; // We need to reassign these values to local arrays because SystemVerilog thinks the iterator in a process is not constant for arrays of interfaces
@@ -195,6 +199,11 @@ always_comb begin
         n_mux_out.valid = mux_out.valid;
     end 
 end
+
+// Assign ready to silence assertion that ready cannot be undefined. Needs to be high so we do not 
+// get in trouble with with stable assertion of the interface.
+assign selected.ready  = 1'b1;
+assign n_mux_out.ready = 1'b1;
 
 DataSkidBuffer #(data_t) inst_output_buffer (.clk(clk), .rst_n(reset_synced), .in(mux_out), .out(out));
 

@@ -65,8 +65,10 @@ assign data_beat_done = (processed | current_processed) == in.keep;
 always_ff @(posedge clk) begin
     if (reset_synced == 1'b0) begin
         current_id <= '0;
-        mask       <= '0;
         processed  <= '0;
+        mask       <= '0;
+        
+        out.valid <= 1'b0;
     end else begin
         current_id <= n_current_id;
         processed  <= n_processed;

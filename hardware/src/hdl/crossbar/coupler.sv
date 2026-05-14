@@ -10,7 +10,7 @@
 module Coupler #(
     parameter NUM_ELEMENTS,
     parameter MAX_IN_TRANSIT,
-    parameter ENABLE_SKID_BUFFER = 1
+    parameter EN_SKID_BUFFER = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -31,9 +31,8 @@ typedef struct packed {
 logic[NUM_ELEMENTS - 1:0] in_valid;
 logic                     data_beat_complete;
 
-ready_valid_i #(mask_t) curr_mask();
-
-ndata_i #(data_t, NUM_ELEMENTS) internal();
+ready_valid_i #(mask_t)               curr_mask(clk, rst_n);
+ndata_i       #(data_t, NUM_ELEMENTS) internal(clk, rst_n);
 
 FIFO #(
     .DEPTH(MAX_IN_TRANSIT),
@@ -70,7 +69,7 @@ end
 assign internal.last  = curr_mask.data.last;
 assign internal.valid = data_beat_complete;
 
-generate if (ENABLE_SKID_BUFFER) begin
+generate if (EN_SKID_BUFFER) begin
     NDataSkidBuffer #(data_t, NUM_ELEMENTS) inst_skid_buffer (.clk(clk), .rst_n(rst_n), .in(internal), .out(out));
 end else begin
     `DATA_ASSIGN(internal, out)

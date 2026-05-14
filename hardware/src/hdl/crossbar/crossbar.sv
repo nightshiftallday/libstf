@@ -24,9 +24,9 @@ generate
 
 `RESET_RESYNC // Reset pipelining
 
-tagged_i #(data_t, TAG_WIDTH) skid_pipe[NUM_INPUTS][NUM_SKID_STAGES + 1]();
-tagged_i #(data_t, TAG_WIDTH) duplicator_out[NUM_INPUTS][NUM_OUTPUTS]();
-tagged_i #(data_t, TAG_WIDTH) mux_in[NUM_OUTPUTS][NUM_INPUTS]();
+tagged_i #(data_t, TAG_WIDTH) skid_pipe[NUM_INPUTS][NUM_SKID_STAGES + 1](clk, reset_synced);
+tagged_i #(data_t, TAG_WIDTH) duplicator_out[NUM_INPUTS][NUM_OUTPUTS](clk, reset_synced);
+tagged_i #(data_t, TAG_WIDTH) mux_in[NUM_OUTPUTS][NUM_INPUTS](clk, reset_synced);
 
 logic[NUM_INPUTS-1:0][NUM_OUTPUTS-1:0] mux_ready_transposed;
     

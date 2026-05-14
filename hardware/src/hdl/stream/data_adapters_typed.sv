@@ -205,7 +205,7 @@ module NDataToTypedNData #(
     typed_ndata_i.m out          // #(DATABEAT_SIZE)
 );
 
-valid_i #(type_t) keep_type ();
+valid_i #(type_t) keep_type(clk, rst_n);
 always_ff @(posedge clk) begin
     if (rst_n == 1'b0) begin
         keep_type.valid <= 0;
@@ -221,7 +221,8 @@ always_ff @(posedge clk) begin
     end
 end
 
-valid_i #(type_t) typ ();
+valid_i #(type_t) typ(clk, rst_n);
+
 always_comb begin
     if (keep_type.valid) begin
         typ.valid = keep_type.valid;
@@ -264,7 +265,7 @@ module AXIToTypedNData #(
     typed_ndata_i.m out          // #(DATABEAT_SIZE)
 );
 
-ndata_i #(data8_t, DATABEAT_SIZE) inner ();
+ndata_i #(data8_t, DATABEAT_SIZE) inner(clk, rst_n);
 
 AXIToNData #(
     .data_t(data8_t),
@@ -307,7 +308,7 @@ module TypedNDataToAXI #(
     AXI4S.m out                 // #(AXI_WIDTH)
 );
 
-ndata_i #(data8_t, DATABEAT_SIZE) inner ();
+ndata_i #(data8_t, DATABEAT_SIZE) inner(clk, rst_n);
 
 // Discard the typ field on the typed_ndata_i.
 // After that, typed_ndata_i is the same as ndata_i.

@@ -24,10 +24,10 @@ typedef struct packed {
     serial_t serial;
 } serial_data_t;
 
-ntagged_i #(data_t, SERIAL_WIDTH, NUM_ELEMENTS) enumerator_out();
+ntagged_i #(data_t, SERIAL_WIDTH, NUM_ELEMENTS) enumerator_out(clk, rst_n);
 
-ndata_i #(serial_data_t, NUM_ELEMENTS) decoupler_in();
-data_i  #(serial_data_t)               decoupler_out[NUM_ELEMENTS]();
+ndata_i #(serial_data_t, NUM_ELEMENTS) decoupler_in(clk, rst_n);
+data_i  #(serial_data_t)               decoupler_out[NUM_ELEMENTS](clk, rst_n);
 
 ReorderEnumerator #(
     .data_t(data_t),

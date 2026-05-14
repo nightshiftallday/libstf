@@ -20,9 +20,9 @@ module DataNormalizer #(
 
 logic[$clog2(NUM_ELEMENTS) - 1:0] offset;
 
-ndata_i #(data_t, NUM_ELEMENTS) compactor_out();
-ndata_i #(data_t, NUM_ELEMENTS) shifter_out();
-ndata_i #(data_t, NUM_ELEMENTS) register();
+ndata_i #(data_t, NUM_ELEMENTS) compactor_out(clk, rst_n);
+ndata_i #(data_t, NUM_ELEMENTS) shifter_out(clk, rst_n);
+ndata_i #(data_t, NUM_ELEMENTS) register(clk, rst_n);
 
 logic emit;
 logic[NUM_ELEMENTS - 1:0] register_and_shifted_keep, register_or_shifted_keep;
@@ -136,6 +136,10 @@ always_ff @(posedge clk) begin
         end
     end
 end
+
+// Assign ready to silence assertion that ready cannot be undefined. Needs to be high so we do not 
+// get in trouble with with stable assertion of the interface.
+assign register.ready = 1'b1;
 
 assign emit = register.valid && shifter_out.valid && &(register.keep | shifter_out.keep);
 assign register_and_shifted_keep = register.valid ? register.keep & shifter_out.keep : shifter_out.keep;

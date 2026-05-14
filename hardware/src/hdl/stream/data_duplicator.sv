@@ -70,7 +70,7 @@ typedef struct packed {
     logic[TAG_WIDTH - 1:0] tag;
 } data_tag_t;
 
-ndata_i #(data_tag_t, NUM_ELEMENTS) internal_in(), internal_out[NUM_OUTPUTS]();
+ndata_i #(data_tag_t, NUM_ELEMENTS) internal_in(clk, rst_n), internal_out[NUM_OUTPUTS](clk, rst_n);
 
 for (genvar I = 0; I < NUM_ELEMENTS; I++) begin
     assign internal_in.data[I].data = in.data[I];
@@ -121,7 +121,7 @@ module DataDuplicator #(
     data_i.m out[NUM_OUTPUTS] // #(data_t)
 );
 
-ndata_i #(data_t, 1) internal_in(), internal_out[NUM_OUTPUTS]();
+ndata_i #(data_t, 1) internal_in(clk, rst_n), internal_out[NUM_OUTPUTS](clk, rst_n);
 
 `DATA_ASSIGN(in, internal_in)
 

@@ -14,7 +14,7 @@ module ConfigWriteFIFO #(
 
 logic valid;
 
-ready_valid_i #(data_t) internal();
+ready_valid_i #(data_t) internal(clk, rst_n);
 
 assign valid = write_config.valid && write_config.addr == ADDR;
 

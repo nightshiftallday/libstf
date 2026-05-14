@@ -11,8 +11,8 @@ assign clk   = aclk;
 assign rst_n = aresetn;
 
 // -- Configuration --------------------------------------------------------------------------------
-write_config_i write_configs[2](.*);
-read_config_i  read_configs [2](.*);
+write_config_i write_configs[2](clk, rst_n);
+read_config_i  read_configs [2](clk, rst_n);
 
 GlobalConfig #(
     .SYSTEM_ID(0),
@@ -28,7 +28,7 @@ GlobalConfig #(
     .read_configs(read_configs)
 );
 
-mem_config_i mem_config[N_STRM_AXI](.*);
+mem_config_i mem_config[N_STRM_AXI](clk, rst_n);
 MemConfig #(
     .NUM_STREAMS(N_STRM_AXI)
 ) inst_mem_config (
