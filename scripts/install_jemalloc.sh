@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash
 
 # Determine the paths to install into
 download_path="$HOME/download"
@@ -11,11 +11,12 @@ install_path="$HOME/opt"
 if [ -n "$INSTALL_PATH" ]; then
   install_path="$INSTALL_PATH"
 fi
-mkdir -p "${download_path}"
+mkdir -p "${install_path}"
 
 echo "Downloading into ${download_path} and installing into ${install_path}"
 
 # Clone the repository
+pushd "${download_path}"
 wget https://github.com/jemalloc/jemalloc/archive/refs/tags/5.3.0.zip
 unzip 5.3.0.zip
 rm 5.3.0.zip
@@ -30,9 +31,6 @@ pushd "${download_path}/jemalloc"
 #                   default arenas as we can.
 ./configure --prefix=${install_path} --with-jemalloc-prefix=je_ --with-malloc-conf=narenas:1
 
-# Compile & Install
-make
+# Compile & install
+make -j
 make install
-
-# Go back to the parent directory
-popd
