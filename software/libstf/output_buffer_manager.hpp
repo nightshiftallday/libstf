@@ -27,13 +27,19 @@ class OutputBufferManager {
      * @param mem_config
      * @param memory_pool
      * @param tlb_manager
+     * @param managed_streams Bitmask of streams whose buffers are auto-managed (allocated up front
+     *                        via the mask-based acquire_output_handle). Streams with their bit
+     *                        cleared must instead use acquire_output_handle(stream, size), where the
+     *                        caller supplies the exact transfer size. Default: all streams managed.
      * @param num_buffers_to_enqueue
      * @param buffer_capacity
      */
     OutputBufferManager(std::shared_ptr<coyote::cThread> cthread,
-                        std::shared_ptr<MemConfig>       mem_config,
-                        std::shared_ptr<MemoryPool>      memory_pool,
-                        std::shared_ptr<TLBManager> tlb_manager, size_t num_buffers_to_enqueue = 2,
+                        std::shared_ptr<MemConfig> mem_config,
+                        std::shared_ptr<MemoryPool> memory_pool,
+                        std::shared_ptr<TLBManager> tlb_manager,
+                        stream_mask_t               managed_streams        = ~stream_mask_t(0),
+                        size_t                      num_buffers_to_enqueue = 2,
                         size_t buffer_capacity = MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE);
 
     ~OutputBufferManager();
@@ -51,11 +57,32 @@ class OutputBufferManager {
      * returns a handle that the data can be retrieved from eventually. The method may be called
      * multiple times to essentially enqueue multiple output stream sets.
      *
+     * All streams in `active_streams` must be managed streams (bit set in `managed_streams` passed
+     * to the constructor). Unmanaged streams must use the size-based overload below.
+     *
      * @param active_streams A mask of the streams to wait on for output. Only the first NUM_STREAMS
      * bits may be set.
      * @return A handle to read the data from.
      */
     std::shared_ptr<OutputHandle> acquire_output_handle(stream_mask_t active_streams);
+
+    /**
+     * Acquires an output handle for a single unmanaged stream whose total output size is known up
+     * front. Buffers totaling exactly `size` bytes are allocated and enqueued — no extra
+     * speculative buffers beyond what is needed for the requested transfer.
+     *
+     * If `size` exceeds the maximum per-buffer capacity (MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE), the
+     * transfer is split across multiple buffers of up to that capacity each. Each chunk is
+     * enqueued separately and surfaced to the returned handle via the regular interrupt path, so
+     * callers retrieving output via `get_next_stream_output` may see more than one Buffer.
+     *
+     * The stream must NOT be managed (bit cleared in `managed_streams` passed to the constructor).
+     *
+     * @param stream The stream to acquire the handle for.
+     * @param size   The exact number of bytes the FPGA will write to this stream.
+     * @return A handle to read the data from.
+     */
+    std::shared_ptr<OutputHandle> acquire_output_handle(stream_t stream, size_t size);
 
     /**
      * Flushes all currently enqueued buffers in hardware. This is necessary after the software is
@@ -71,9 +98,10 @@ class OutputBufferManager {
     std::shared_ptr<MemoryPool>      memory_pool;
     std::shared_ptr<TLBManager>      tlb_manager;
 
-    const stream_t NUM_STREAMS;
-    const size_t   NUM_BUFFERS_TO_ENQUEUE;
-    const size_t   BUFFER_CAPACITY;
+    const stream_t      NUM_STREAMS;
+    const stream_mask_t MANAGED_STREAMS;
+    const size_t        NUM_BUFFERS_TO_ENQUEUE;
+    const size_t        BUFFER_CAPACITY;
 
     // State for each stream
     // There is one mutex to protect and changes in the stream_state.

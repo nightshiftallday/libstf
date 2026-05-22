@@ -6,6 +6,8 @@ option(LIBSTF_WITH_PROFILING "Enable profiling to measure runtime of call groups
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(GNUInstallDirs)
+
 # Collect source files
 file(GLOB_RECURSE SOURCES libstf/*.cpp)
 
@@ -13,13 +15,10 @@ file(GLOB_RECURSE SOURCES libstf/*.cpp)
 add_library(libstf SHARED ${SOURCES})
 
 # Find dependencies
-
-# Only add Coyote as a subdirectory if we are installing it standalone
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR) 
-    add_subdirectory(../coyote/sw coyote)
-else()
-    if(NOT TARGET Coyote)
-        message(FATAL_ERROR "When libstf is a subproject, parent must provide Coyote")
+if(NOT TARGET Coyote)
+    find_package(Coyote QUIET)
+    if(NOT Coyote_FOUND)
+        add_subdirectory(../coyote/sw coyote)
     endif()
 endif()
 
@@ -45,8 +44,6 @@ if (LIBSTF_WITH_PROFILING)
     target_link_libraries(libstf PRIVATE caliper)
     target_include_directories(libstf PRIVATE ${CALIPER_INCLUDE_DIR})
 endif()
-
-include(GNUInstallDirs)
 
 # Install the library
 install(TARGETS libstf

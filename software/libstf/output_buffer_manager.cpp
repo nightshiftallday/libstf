@@ -62,11 +62,12 @@ OutputBufferManager::OutputBufferManager(std::shared_ptr<coyote::cThread> cthrea
                                          std::shared_ptr<MemConfig>       mem_config,
                                          std::shared_ptr<MemoryPool>      memory_pool,
                                          std::shared_ptr<TLBManager>      tlb_manager,
+                                         stream_mask_t                    managed_streams,
                                          size_t num_buffers_to_enqueue, size_t buffer_capacity)
     : cthread(cthread), mem_config(mem_config), memory_pool(memory_pool), tlb_manager(tlb_manager),
-      NUM_STREAMS(mem_config->num_streams()), NUM_BUFFERS_TO_ENQUEUE(num_buffers_to_enqueue),
-      BUFFER_CAPACITY(buffer_capacity), enqueued_buffers(NUM_STREAMS),
-      enqueued_handles(NUM_STREAMS) {
+      NUM_STREAMS(mem_config->num_streams()), MANAGED_STREAMS(managed_streams),
+      NUM_BUFFERS_TO_ENQUEUE(num_buffers_to_enqueue), BUFFER_CAPACITY(buffer_capacity),
+      enqueued_buffers(NUM_STREAMS), enqueued_handles(NUM_STREAMS) {
     if (NUM_BUFFERS_TO_ENQUEUE == 0)
         throw std::runtime_error("Number of enqueued buffers has to be larger than 0");
     if (NUM_BUFFERS_TO_ENQUEUE > mem_config->maximum_num_enqueued_buffers())
@@ -105,14 +106,20 @@ void OutputBufferManager::handle_fpga_interrupt(int coyote_value) {
     // 2. Move buffer from enqueued to it's corresponding handle
     move_current_buffer_to_handle(parsed.stream_id, parsed.bytes_written, parsed.last);
 
-    // 3. Enqueue new buffer
-    enqueue_buffer_for_stream(parsed.stream_id);
+    // 3. Enqueue new buffer — only for managed streams. Unmanaged streams have a single buffer of
+    //    the exact size enqueued at acquire time and do not get speculatively topped up.
+    if (MANAGED_STREAMS.test(parsed.stream_id)) {
+        enqueue_buffer_for_stream(parsed.stream_id);
+    }
     Profiler::close_regions({prefix + "handle_fpga_interrupt"});
 }
 
 std::shared_ptr<OutputHandle>
 OutputBufferManager::acquire_output_handle(stream_mask_t active_mask) {
     assert(active_mask.any() && (active_mask >> NUM_STREAMS).none());
+    // All requested streams must be managed by this OBM. Unmanaged streams must use the
+    // size-based overload below.
+    assert((active_mask & ~MANAGED_STREAMS).none());
 
     Profiler::open_regions({prefix + "acquire_output_handle"});
     std::shared_ptr<OutputHandle> handle(new OutputHandle(memory_pool, active_mask, NUM_STREAMS));
@@ -126,6 +133,51 @@ OutputBufferManager::acquire_output_handle(stream_mask_t active_mask) {
 
             enqueued_handles[i].emplace(handle);
         }
+    }
+
+    Profiler::close_regions({prefix + "acquire_output_handle"});
+    return handle;
+}
+
+std::shared_ptr<OutputHandle> OutputBufferManager::acquire_output_handle(stream_t stream,
+                                                                         size_t   size) {
+    assert(stream < NUM_STREAMS);
+    // This entry point is only for unmanaged streams — managed streams must go through the
+    // mask-based overload above.
+    assert(!MANAGED_STREAMS.test(stream));
+    assert(size > 0);
+
+    Profiler::open_regions({prefix + "acquire_output_handle"});
+
+    stream_mask_t active_mask;
+    active_mask.set(stream);
+    std::shared_ptr<OutputHandle> handle(new OutputHandle(memory_pool, active_mask, NUM_STREAMS));
+
+    std::lock_guard guard(enqueued_buffers_mutex);
+
+    // The FPGA's per-buffer capacity is bounded by MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE. If the
+    // caller-provided size exceeds that, we split it across multiple buffers — each enqueued
+    // separately and surfaced to the handle via the regular interrupt path.
+    size_t remaining = size;
+    while (remaining > 0) {
+        size_t chunk = std::min<size_t>(remaining, MAXIMUM_OUTPUT_WRITER_BUFFER_SIZE);
+        // Round chunk up to a multiple of BYTES_PER_FPGA_TRANSFER as required by the HW.
+        size_t capacity =
+            ((chunk + BYTES_PER_FPGA_TRANSFER - 1) / BYTES_PER_FPGA_TRANSFER) *
+            BYTES_PER_FPGA_TRANSFER;
+
+        Buffer buffer  = {};
+        buffer.capacity = capacity;
+        auto res        = memory_pool->allocate(buffer.capacity, &buffer.ptr);
+        assert(res.ok());
+        tlb_manager->ensure_tlb_mapping(reinterpret_cast<std::byte *>(buffer.ptr), buffer.capacity);
+
+        enqueued_buffers[stream].push(buffer);
+        enqueued_handles[stream].emplace(handle);
+
+        mem_config->enqueue_buffer(stream, buffer);
+
+        remaining -= chunk;
     }
 
     Profiler::close_regions({prefix + "acquire_output_handle"});
@@ -191,9 +243,8 @@ void OutputBufferManager::enqueue_buffer_for_stream(stream_t stream_id) {
     // 1. Allocate new memory
     Buffer buffer   = {};
     buffer.capacity = BUFFER_CAPACITY;
-    auto alignment  = HugePageMemoryPool::DEFAULT_ALIGNMENT;
 
-    auto res = memory_pool->allocate(buffer.capacity, alignment, &buffer.ptr);
+    auto res = memory_pool->allocate(buffer.capacity, &buffer.ptr);
     assert(res.ok());
 
     tlb_manager->ensure_tlb_mapping(reinterpret_cast<std::byte *>(buffer.ptr), buffer.capacity);
