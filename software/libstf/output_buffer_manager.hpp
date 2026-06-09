@@ -90,6 +90,8 @@ class OutputBufferManager {
      */
     void flush_buffers();
 
+    size_t buffer_capacity() const { return BUFFER_CAPACITY; }
+
   private:
     // We need to pass these because otherwise we will get a circular dependency to the
     // CelerisContext
