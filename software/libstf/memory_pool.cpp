@@ -1,5 +1,7 @@
 #include <libstf/memory_pool.hpp>
 
+#include <libstf/logging.hpp>
+
 #include <fstream>
 #include <memory>
 
@@ -136,8 +138,7 @@ HugePageMemoryPool::~HugePageMemoryPool() {
 
     // Unmap all the pre-allocated memory
     if (munmap(initial_address_, total_capacity_) == -1) {
-        std::cerr << "HugePageMemoryPool: Could not munmap the obtained huge page mappings."
-                  << std::endl;
+        log(LogLevel::ERROR, "HugePageMemoryPool: Could not munmap the obtained huge page mappings.");
     }
 }
 
@@ -309,10 +310,10 @@ void *HugePageMemoryPool::huge_page_alloc(extent_hooks_t *hooks, void *new_addr,
     // There was not enough space remaining
     if (aligned_address == nullptr) {
         allocations_mutex_.unlock();
-        std::cerr << "HugePageMemoryPool: Not enough huge page memory remaining to satisfy "
-                     "jemalloc request over "
-                  << size << " bytes. Please add additional 1GiB huge pages to your system."
-                  << std::endl;
+        log(LogLevel::ERROR,
+            "HugePageMemoryPool: Not enough huge page memory remaining to satisfy jemalloc request "
+            "over %zu bytes. Please add additional 1GiB huge pages to your system.",
+            size);
         return nullptr;
     }
 
