@@ -15,7 +15,7 @@ cali::ConfigManager Profiler::mgr;
 
 void Profiler::init() {
 #ifdef LIBSTF_WITH_PROFILING
-    cali_config_set("CALI_CALIPER_ATTRIBUTE_DEFAULT_SCOPE", "process");
+    cali_config_set("CALI_CALIPER_ATTRIBUTE_DEFAULT_SCOPE", "thread");
     mgr = cali::ConfigManager();
     mgr.add(profile.c_str());
 
