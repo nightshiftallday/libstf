@@ -224,14 +224,16 @@ end
 valid_i #(type_t) typ(clk, rst_n);
 
 always_comb begin
+    // Default assignments prevent latch inference on typ.data.
+    typ.data  = keep_type.data;
+    typ.valid = 1'b0;
+
     if (keep_type.valid) begin
+        typ.data  = keep_type.data;
         typ.valid = keep_type.valid;
-        typ.data = keep_type.data;
     end else if (in_type.ready && in_type.valid) begin
-        typ.valid = 1;
-        typ.data = in_type.data;
-    end else begin
-        typ.valid = 0;
+        typ.data  = in_type.data;
+        typ.valid = 1'b1;
     end
 end
 
