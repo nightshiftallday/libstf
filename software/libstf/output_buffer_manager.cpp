@@ -2,6 +2,9 @@
 #include <libstf/output_buffer_manager.hpp>
 #include <libstf/profiling.hpp>
 
+#include <stdexcept>
+#include <string>
+
 namespace libstf {
 
 // ----------------------------------------------------------------------------
@@ -169,7 +172,11 @@ std::shared_ptr<OutputHandle> OutputBufferManager::acquire_output_handle(stream_
         Buffer buffer  = {};
         buffer.capacity = capacity;
         auto res        = memory_pool->allocate(buffer.capacity, &buffer.ptr);
-        assert(res.ok());
+        if (!res.ok()) {
+            throw std::runtime_error(
+                "OutputBufferManager::acquire_output_handle could not allocate a " +
+                std::to_string(buffer.capacity) + " byte output buffer: " + res.message());
+        }
         tlb_manager->ensure_tlb_mapping(reinterpret_cast<std::byte *>(buffer.ptr), buffer.capacity);
 
         enqueued_buffers[stream].push(buffer);
@@ -218,7 +225,11 @@ void OutputBufferManager::move_current_buffer_to_handle(stream_t stream_id, uint
             auto res =
                 memory_pool->reallocate(active_buffer.capacity, bytes_written,
                                         HugePageMemoryPool::DEFAULT_ALIGNMENT, &active_buffer.ptr);
-            assert(res.ok());
+            if (!res.ok()) {
+                throw std::runtime_error(
+                    "OutputBufferManager::move_current_buffer_to_handle could not shrink output buffer to " +
+                    std::to_string(bytes_written) + " bytes: " + res.message());
+            }
         }
         active_buffer.size = bytes_written;
 
@@ -245,7 +256,11 @@ void OutputBufferManager::enqueue_buffer_for_stream(stream_t stream_id) {
     buffer.capacity = BUFFER_CAPACITY;
 
     auto res = memory_pool->allocate(buffer.capacity, &buffer.ptr);
-    assert(res.ok());
+    if (!res.ok()) {
+        throw std::runtime_error(
+            "OutputBufferManager::enqueue_buffer_for_stream could not allocate a " +
+            std::to_string(buffer.capacity) + " byte output buffer: " + res.message());
+    }
 
     tlb_manager->ensure_tlb_mapping(reinterpret_cast<std::byte *>(buffer.ptr), buffer.capacity);
 
