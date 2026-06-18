@@ -2,31 +2,27 @@
 
 package libstf;
 
-import lynxTypes::*;
+import lynxTypes::VADDR_BITS;
+import lynxTypes::LEN_BITS;
 
 // -- Constants ------------------------------------------------------------------------------------
 
-// This value describes the maximum size in bytes of one memory transfer.
-// Each transfer of this size will get a acknowledgement.
-// The memory allocated for the output by the host should be a multiple of
-// this size. Otherwise, the 'overhang' will go unused.
-// The overwrite value is used on tests to trigger specific conditions.
-// For the synthesis, the default value will be used.
+// This value describes the maximum size in Bytes of one transfer of the `OutputWriter`. The  buffer
+// allocated for the output by the host should be a multiple of this size. The overwrite value is
+// only used on tests to trigger specific conditions.
 `ifdef TRANSFER_SIZE_BYTES_OVERWRITE
     localparam integer TRANSFER_SIZE_BYTES = `TRANSFER_SIZE_BYTES_OVERWRITE;
 `else
-    // This value is used as it allowed peak performance in the perf_fpga example.
-    // See: https://github.com/fpgasystems/Coyote/tree/tutorial/examples/07_perf_fpga
-    //      (Section Expected results)
+    // This value is chosen as it is the smallest transfer size to get peak PCIe throughput in the 
+    // perf_fpga example. See: 
+    //      https://github.com/fpgasystems/Coyote/tree/master/examples/07_perf_fpga
     localparam integer TRANSFER_SIZE_BYTES = 65536;
 `endif
 
-// The maximum size per host allocation that is supported by the design. (2**28 - 1 = 256 MiB - 1 byte)
-// This limitation comes from the 32 bits we have available for interrupt values.
-// See output_writer for more info.
-localparam integer MAXIMUM_HOST_ALLOCATION_LEN_BIT    = 28;
-localparam integer MAXIMUM_HOST_ALLOCATION_SIZE_BYTES = 2 ** MAXIMUM_HOST_ALLOCATION_LEN_BIT - 1;
-localparam integer BUFFER_SIZE_BITS                   = 28 - $clog2(TRANSFER_SIZE_BYTES);
+// The maximum buffer size for the `OutputWriter` (2**28 - 1 = 256 MiB - 1 Byte). This limitation
+// comes from the 32 bits we have available for interrupt values.
+localparam integer MAXIMUM_BUFFER_SIZE = 28;
+localparam integer BUFFER_SIZE_BITS = 28 - $clog2(TRANSFER_SIZE_BYTES);
 
 localparam GENERIC_CONFIG_ID = -1;
 
@@ -40,6 +36,9 @@ typedef logic[7:0]  data8_t;
 typedef logic[15:0] data16_t;
 typedef logic[31:0] data32_t;
 typedef logic[63:0] data64_t;
+
+// Width matches the Coyote req_t.len field this size ultimately drives.
+typedef logic[LEN_BITS - 1:0] size_t;
 
 typedef enum logic[2:0] {
     BYTE_T,
