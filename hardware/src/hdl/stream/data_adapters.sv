@@ -138,9 +138,7 @@ localparam int AXI_BYTES = AXI_WIDTH / 2;
 logic[COUNTER_W - 1:0] counter;
 logic next_beat_valid;
 logic counter_reset;
-logic[COUNTER_W - 1:0] next_keep_select;
 
-assign next_keep_select = (COUNTER_W-1)'(counter + 1) * DATA_WIDTH / 8;
 assign next_beat_valid = counter == NUM_ELEMENTS - 1 ? 0 : in.tkeep[($clog2(AXI_BYTES)-1)'(counter + 1) * DATA_WIDTH / 8];
 assign counter_reset = counter == NUM_ELEMENTS - 1 || !next_beat_valid;
 
