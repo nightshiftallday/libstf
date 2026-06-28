@@ -20,17 +20,21 @@ module NDataWidthConverter #(
 
 localparam IN_WIDTH           = in.NUM_ELEMENTS;
 localparam OUT_WIDTH          = out.NUM_ELEMENTS;
-localparam NUM_SLOTS          = OUT_WIDTH / IN_WIDTH;
-localparam SLOT_COUNTER_WIDTH = $clog2(NUM_SLOTS);
 
-`ASSERT_ELAB(IN_WIDTH <= OUT_WIDTH)
+// Global constraints
 `ASSERT_ELAB((IN_WIDTH & (IN_WIDTH - 1)) == 0)   // IN_WIDTH is power of 2
 `ASSERT_ELAB((OUT_WIDTH & (OUT_WIDTH - 1)) == 0) // OUT_WIDTH is power of 2
-`ASSERT_ELAB(OUT_WIDTH % IN_WIDTH == 0)          // Exact multiple
 
-generate if (IN_WIDTH == OUT_WIDTH) begin
+generate
+
+if (IN_WIDTH == OUT_WIDTH) begin
     `DATA_ASSIGN(in, out)
-end else begin
+end else if (IN_WIDTH < OUT_WIDTH) begin
+    `ASSERT_ELAB(OUT_WIDTH % IN_WIDTH == 0) // Exact multiple
+    
+    localparam NUM_SLOTS          = OUT_WIDTH / IN_WIDTH;
+    localparam SLOT_COUNTER_WIDTH = $clog2(NUM_SLOTS);
+
     logic[SLOT_COUNTER_WIDTH - 1:0] slot_idx, n_slot_idx;
 
     data_t[OUT_WIDTH - 1:0] data,  n_data;
@@ -92,6 +96,63 @@ end else begin
     assign out.keep  = keep;
     assign out.last  = last;
     assign out.valid = valid;
-end endgenerate
+end else begin
+    `ASSERT_ELAB(IN_WIDTH % OUT_WIDTH == 0) // Exact multiple
+    
+    localparam NUM_SLOTS          = IN_WIDTH / OUT_WIDTH;
+
+    data_t[IN_WIDTH-1:0]            data;
+    logic [IN_WIDTH-1:0]            keep;
+    logic [NUM_SLOTS-1:0]  slot_keep_agg;
+    logic                           last;
+    logic                           valid;
+
+    logic fetch_next;
+    assign fetch_next = !slot_keep_agg[0] || !slot_keep_agg[1];
+    assign in.ready = fetch_next && out.ready;
+
+    task fetchNext();
+        data <= in.data;
+        keep <= in.keep;
+        last <= in.last;
+        for (int i = 0; i < NUM_SLOTS; ++i) begin
+            slot_keep_agg[i] <= |(in.keep[i * OUT_WIDTH+:OUT_WIDTH]);
+        end
+    endtask
+    
+    task shift();
+        for (int i = 0; i < NUM_SLOTS - 1; ++i) begin
+            data[i * OUT_WIDTH +: OUT_WIDTH] <= data[(i + 1) * OUT_WIDTH +: OUT_WIDTH];
+            keep[i * OUT_WIDTH +: OUT_WIDTH] <= keep[(i + 1) * OUT_WIDTH +: OUT_WIDTH];
+            slot_keep_agg[i] <= slot_keep_agg[i + 1];
+        end
+        slot_keep_agg[NUM_SLOTS - 1] <= '0;
+    endtask
+
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            slot_keep_agg <= '0;
+            last <= 0;
+            valid <= 1'b0;
+        end else begin
+            if (fetch_next && out.ready) begin
+                if (in.valid)
+                    fetchNext();
+                else
+                    shift();
+            end else if (out.ready) begin
+                shift();
+            end
+        end
+    end
+
+    assign out.data  = data[OUT_WIDTH-1:0];
+    assign out.keep  = keep[OUT_WIDTH-1:0];
+    assign out.last  = last && fetch_next;
+    assign out.valid = slot_keep_agg[0];
+    
+end
+
+endgenerate
 
 endmodule
