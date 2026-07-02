@@ -5,8 +5,11 @@
 /**
  * Converts an ndata_i stream to a different width.
  *
- * Note: Supports any power-of-two IN_WIDTH that is <= OUT_WIDTH. OUT_WIDTH must be a multiple of 
- * IN_WIDTH.
+ * Note: Supports any power-of-two IN_WIDTH and OUT_WIDTH. When IN_WIDTH != OUT_WIDTH the wider side
+ * must be an exact multiple of the narrower side (guaranteed for powers of two). When upscaling,
+ * NUM_SLOTS narrow input beats are packed into one wide output beat. When downscaling, one wide
+ * input beat is drained over up to NUM_SLOTS narrow output beats. Trailing slots without kept
+ * elements are suppressed so partial (last) beats do not produce empty output beats.
  */
 module NDataWidthConverter #(
     parameter type data_t
@@ -18,19 +21,18 @@ module NDataWidthConverter #(
     ndata_i.m out // #(data_t, OUT_WIDTH)
 );
 
-localparam IN_WIDTH           = in.NUM_ELEMENTS;
-localparam OUT_WIDTH          = out.NUM_ELEMENTS;
-localparam NUM_SLOTS          = OUT_WIDTH / IN_WIDTH;
-localparam SLOT_COUNTER_WIDTH = $clog2(NUM_SLOTS);
+localparam IN_WIDTH  = in.NUM_ELEMENTS;
+localparam OUT_WIDTH = out.NUM_ELEMENTS;
 
-`ASSERT_ELAB(IN_WIDTH <= OUT_WIDTH)
 `ASSERT_ELAB((IN_WIDTH & (IN_WIDTH - 1)) == 0)   // IN_WIDTH is power of 2
 `ASSERT_ELAB((OUT_WIDTH & (OUT_WIDTH - 1)) == 0) // OUT_WIDTH is power of 2
-`ASSERT_ELAB(OUT_WIDTH % IN_WIDTH == 0)          // Exact multiple
 
 generate if (IN_WIDTH == OUT_WIDTH) begin
     `DATA_ASSIGN(in, out)
-end else begin
+end else if (IN_WIDTH < OUT_WIDTH) begin
+    localparam NUM_SLOTS          = OUT_WIDTH / IN_WIDTH;
+    localparam SLOT_COUNTER_WIDTH = $clog2(NUM_SLOTS);
+
     logic[SLOT_COUNTER_WIDTH - 1:0] slot_idx, n_slot_idx;
 
     data_t[OUT_WIDTH - 1:0] data,  n_data;
@@ -91,6 +93,54 @@ end else begin
     assign out.data  = data;
     assign out.keep  = keep;
     assign out.last  = last;
+    assign out.valid = valid;
+end else begin // OUT_WIDTH < IN_WIDTH
+    localparam NUM_SLOTS          = IN_WIDTH / OUT_WIDTH;
+    localparam SLOT_COUNTER_WIDTH = $clog2(NUM_SLOTS);
+
+    data_t[IN_WIDTH - 1:0] data;
+    logic [IN_WIDTH - 1:0] keep;
+    logic                  last;
+    logic                  valid;
+
+    logic[SLOT_COUNTER_WIDTH - 1:0] slot_idx;
+
+    // Index of the highest slot that still contains a kept element.
+    logic[SLOT_COUNTER_WIDTH - 1:0] last_slot;
+    always_comb begin
+        last_slot = '0;
+        for (int s = 0; s < NUM_SLOTS; s++) begin
+            if (|keep[s * OUT_WIDTH +: OUT_WIDTH]) begin
+                last_slot = SLOT_COUNTER_WIDTH'(s);
+            end
+        end
+    end
+
+    logic out_fire, beat_done, can_load;
+    assign out_fire  = valid && out.ready;                // current output slot is consumed
+    assign beat_done = out_fire && slot_idx == last_slot; // last slot of the buffered beat consumed
+    assign can_load  = !valid || beat_done;               // buffer is empty or emptied this cycle
+
+    assign in.ready = can_load;
+
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            slot_idx <= '0;
+            valid    <= 1'b0;
+        end else if (can_load) begin
+            slot_idx <= '0;
+            valid    <= in.valid;
+            data     <= in.data;
+            keep     <= in.keep;
+            last     <= in.last;
+        end else if (out_fire) begin
+            slot_idx <= slot_idx + 1; // Bounded by last_slot, so never wraps
+        end
+    end
+
+    assign out.data  = data[slot_idx * OUT_WIDTH +: OUT_WIDTH];
+    assign out.keep  = keep[slot_idx * OUT_WIDTH +: OUT_WIDTH];
+    assign out.last  = last && slot_idx == last_slot;
     assign out.valid = valid;
 end endgenerate
 
