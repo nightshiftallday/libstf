@@ -5,6 +5,7 @@ module DataCompactorLevel #(
     parameter type data_t,
     parameter NUM_ELEMENTS,
     parameter REGISTER = 0,
+    parameter SKID = 0,
     parameter COUNTER_WIDTH = $clog2(NUM_ELEMENTS)
 ) (
     input logic clk,
@@ -43,7 +44,43 @@ always_comb begin
     end
 end
 
-generate if (REGISTER) begin
+generate if (SKID) begin
+    
+    typedef struct packed {
+        data_t [NUM_ELEMENTS - 1:0]     data;
+        logic  [NUM_ELEMENTS - 1:0]     keep;
+        logic                           last;
+        logic [COUNTER_WIDTH - 1:0]    counter;
+    } stage_t;
+
+    ready_valid_i #(stage_t) skid_in (.*);
+    ready_valid_i #(stage_t) skid_out (.*);
+    SkidBuffer #(stage_t) data_compactor_skid (
+        .clk(clk),
+        .rst_n(rst_n),
+
+        .in(skid_in),
+        .out(skid_out)
+    );
+    
+    always_comb begin
+        skid_in.data = '{
+            data: next_data,
+            keep: next_keep,
+            last: in.last,
+            counter: next_counter
+        };
+        skid_in.valid = in.valid;
+        in.ready = skid_in.ready;
+
+        out.data = skid_out.data;
+        out.keep = skid_out.keep;
+        out.ready = skid_out.ready;
+        out.valid = skid_out.valid;
+        skid_out.ready = out.ready;
+    end
+
+end else if (REGISTER) begin
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             out.valid <= 1'b0;
