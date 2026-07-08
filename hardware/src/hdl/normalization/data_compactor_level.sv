@@ -44,22 +44,38 @@ always_comb begin
 end
 
 generate if (REGISTER) begin
-    always_ff @(posedge clk) begin
-        if (!rst_n) begin
-            out.valid <= 1'b0;
-        end else begin
-            if (!out.valid || out.ready) begin
-                out.data  <= next_data;
-                out.keep  <= next_keep;
-                out.last  <= in.last;
-                out.valid <= in.valid;
+    typedef struct packed {
+        data_t[NUM_ELEMENTS - 1:0] data;
+        logic[NUM_ELEMENTS - 1:0]  keep;
+        logic                      last;
+        logic[COUNTER_WIDTH - 1:0] counter;
+    } stage_t;
 
-                counter_out <= next_counter;
-            end
-        end
-    end
+    ready_valid_i #(stage_t) skid_in(clk, rst_n), skid_out(clk, rst_n);
 
-    assign in.ready = !out.valid || out.ready;
+    assign skid_in.data.data    = next_data;
+    assign skid_in.data.keep    = next_keep;
+    assign skid_in.data.last    = in.last;
+    assign skid_in.data.counter = next_counter;
+    assign skid_in.valid        = in.valid;
+    assign in.ready             = skid_in.ready;
+
+    SkidBuffer #(
+        .data_t(stage_t)
+    ) inst_skid_buffer (
+        .clk(clk),
+        .rst_n(rst_n),
+
+        .in(skid_in),
+        .out(skid_out)
+    );
+
+    assign out.data       = skid_out.data.data;
+    assign out.keep       = skid_out.data.keep;
+    assign out.last       = skid_out.data.last;
+    assign out.valid      = skid_out.valid;
+    assign counter_out    = skid_out.data.counter;
+    assign skid_out.ready = out.ready;
 end else begin
     assign out.data  = next_data;
     assign out.keep  = next_keep;
