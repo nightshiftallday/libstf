@@ -33,7 +33,11 @@ module StreamWriter #(
     parameter STRM = STRM_HOST,
     parameter AXI_STRM_ID = 0,
     parameter IS_LOCAL = 1,
-    parameter TRANSFER_LENGTH_BYTES = 4096
+    parameter TRANSFER_LENGTH_BYTES = 4096,
+    // Interrupt/notify identity. Defaults to the physical channel id; set it
+    // separately when several writers share one channel (and thus one
+    // AXI_STRM_ID/dest) so the host can still tell their interrupts apart.
+    parameter IRQ_STREAM_ID = AXI_STRM_ID
 ) (
     input logic clk,
     input logic rst_n,
@@ -61,9 +65,10 @@ localparam AXI_DATA_BYTES = (AXI_DATA_BITS / 8);
 
 // TRANSFER_LENGTH_BYTES must be a multiple of AXI_DATA_BYTES
 `ASSERT_ELAB(TRANSFER_LENGTH_BYTES % AXI_DATA_BYTES == 0)
-// This limitations is because we support only 3 bits for the stream identifier in the 
+// This limitations is because we support only 3 bits for the stream identifier in the
 // interrupt/notify value
 `ASSERT_ELAB(N_STRM_AXI <= 8)
+`ASSERT_ELAB(IRQ_STREAM_ID < 8)
 
 `ifndef SYNTHESIS
 // Input stream
@@ -248,7 +253,7 @@ always_comb begin
     notify.data.pid   = 6'd0;
     // The output value has 32 bits and consists of:
     // 1. The stream id that finished the transfer
-    notify.data.value[2:0] = AXI_STRM_ID;
+    notify.data.value[2:0] = IRQ_STREAM_ID;
     // 2. How much data as written to the vaddr (at most 2^28 bytes are supported)
     notify.data.value[30:3] = bytes_written_to_allocation;
     // 3. Whether this was the last transfer, i.e. all output data was written
