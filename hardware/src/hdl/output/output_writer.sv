@@ -7,7 +7,7 @@ import lynxTypes::*;
 `include "libstf_macros.svh"
 
 /**
- * This module handles N_STRM_AXI output AXI4S streams. It transfers the output to the host via 
+ * This module handles STRM_CNT output AXI4S streams. It transfers the output to the host via 
  * FPGA-initiated transfers.
  *
  * IMPORTANT:
@@ -15,7 +15,9 @@ import lynxTypes::*;
  * E.g. the keep signal should be all 1s, except for data beats that contain a last signal.
  * In other words: Writing data that is not all 1s and not last will result in UNEXPECTED behavior.
  */
-module OutputWriter (
+module OutputWriter #(
+  parameter int STRM_CNT = N_STRM_AXI
+) (
     input logic clk,
     input logic rst_n,
 
@@ -23,16 +25,16 @@ module OutputWriter (
     metaIntf.s cq_wr,
     metaIntf.m notify,
 
-    mem_config_i.s mem_config[N_STRM_AXI],
+    mem_config_i.s mem_config[STRM_CNT],
 
-    AXI4S.s  data_in[N_STRM_AXI],
-    AXI4SR.m data_out[N_STRM_AXI]
+    AXI4S.s  data_in[STRM_CNT],
+    AXI4SR.m data_out[STRM_CNT]
 );
 
 `RESET_RESYNC // Reset pipelining
 
 `ifndef SYNTHESIS
-for(genvar I = 0; I < N_STRM_AXI; I++) begin
+for(genvar I = 0; I < STRM_CNT; I++) begin
     assert property (@(posedge clk) disable iff (!reset_synced) 
         !data_in[I].tvalid || data_in[I].tlast || &data_in[I].tkeep)
     else $fatal(1, "Non-last keep signal (%h) must be all 1s!", data_in[I].tkeep);
@@ -43,12 +45,12 @@ end
 `endif
 
 // -- De-mux and arbiter the queue and notify signals ----------------------------------------------
-metaIntf #(.STYPE(req_t))     sq_wr_strm  [N_STRM_AXI](.aclk(clk), .aresetn(reset_synced));
-metaIntf #(.STYPE(ack_t))     cq_wr_strm  [N_STRM_AXI](.aclk(clk), .aresetn(reset_synced));
-metaIntf #(.STYPE(irq_not_t)) notify_strm [N_STRM_AXI](.aclk(clk), .aresetn(reset_synced));
+metaIntf #(.STYPE(req_t))     sq_wr_strm  [STRM_CNT](.aclk(clk), .aresetn(reset_synced));
+metaIntf #(.STYPE(ack_t))     cq_wr_strm  [STRM_CNT](.aclk(clk), .aresetn(reset_synced));
+metaIntf #(.STYPE(irq_not_t)) notify_strm [STRM_CNT](.aclk(clk), .aresetn(reset_synced));
 
 MetaIntfArbiter #(
-  .N_INTERFACES(N_STRM_AXI),
+  .N_INTERFACES(STRM_CNT),
   .STYPE(req_t)
 ) inst_sq_wr_arbiter (
   .clk(clk),
@@ -58,7 +60,7 @@ MetaIntfArbiter #(
 );
 
 CQDemultiplexer #(
-  .N_STREAMS(N_STRM_AXI)
+  .N_STREAMS(STRM_CNT)
 ) inst_cq_wr_de_mux (
   .clk(clk),
   .rst_n(reset_synced),
@@ -67,7 +69,7 @@ CQDemultiplexer #(
 );
 
 MetaIntfArbiter #(
-  .N_INTERFACES(N_STRM_AXI),
+  .N_INTERFACES(STRM_CNT),
   .STYPE(irq_not_t)
 ) inst_notify_arbiter (
   .clk(clk),
@@ -77,7 +79,7 @@ MetaIntfArbiter #(
 );
 
 // -- FPGA-initiated transfers ---------------------------------------------------------------------
-for(genvar I = 0; I < N_STRM_AXI; I++) begin
+for(genvar I = 0; I < STRM_CNT; I++) begin
 `ifndef DISABLE_OUTPUT_WRITER
     // Invoke the FPGA-initiated transfers for this stream
     StreamWriter #(
