@@ -193,6 +193,19 @@ std::shared_ptr<OutputHandle> OutputBufferManager::acquire_output_handle(stream_
 
 void OutputBufferManager::flush_buffers() { mem_config->flush_buffers(); }
 
+void *OutputBufferManager::next_buffer_address(stream_t stream) {
+    assert(stream < NUM_STREAMS);
+
+    std::lock_guard guard(enqueued_buffers_mutex);
+    if (enqueued_buffers[stream].empty()) {
+        throw std::runtime_error("OutputBufferManager::next_buffer_address: no buffer is enqueued "
+                                 "for stream " +
+                                 std::to_string(stream));
+    }
+
+    return enqueued_buffers[stream].front().ptr;
+}
+
 // ----------------------------------------------------------------------------
 // Private methods
 // ----------------------------------------------------------------------------

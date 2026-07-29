@@ -90,6 +90,23 @@ class OutputBufferManager {
      */
     void flush_buffers();
 
+    /**
+     * @return The address of the buffer the FPGA will write next on `stream`, i.e. the one at the
+     *         head of that stream's enqueued queue.
+     *
+     * Needed by designs where the hardware has to be told up front where its output will land.
+     * ParCore's string heap is the motivating case: the decoder embeds absolute addresses into the
+     * decoded german_str_t records, so the heap base must be known before the column chunk
+     * configuration is written.
+     *
+     * Only meaningful immediately after acquiring a handle for a stream that has exactly one
+     * outstanding handle. With several in flight, the head of the queue belongs to an earlier
+     * handle rather than the one just acquired.
+     *
+     * @throws std::runtime_error if no buffer is currently enqueued for the stream.
+     */
+    void *next_buffer_address(stream_t stream);
+
     size_t buffer_capacity() const { return BUFFER_CAPACITY; }
 
   private:
