@@ -109,6 +109,24 @@ class OutputBufferManager {
 
     size_t buffer_capacity() const { return BUFFER_CAPACITY; }
 
+    size_t num_streams() const { return NUM_STREAMS; }
+    size_t num_buffers_to_enqueue() const { return NUM_BUFFERS_TO_ENQUEUE; }
+
+    /**
+     * Diagnostics. Buffers the FPGA has not yet reported back on for `stream`
+     * -- the depth the hardware is being kept topped up to. If this drifts
+     * towards zero the FPGA is about to run out of somewhere to write, which
+     * looks from the outside like the design hanging.
+     */
+    struct StreamStats {
+        size_t enqueued_now;    // currently outstanding
+        size_t enqueued_total;  // handed to the FPGA over the run
+        size_t interrupts;      // completions reported back
+        size_t bytes_written;   // as reported by those completions
+    };
+
+    StreamStats stats(stream_t stream);
+
   private:
     // We need to pass these because otherwise we will get a circular dependency to the
     // CelerisContext
@@ -131,6 +149,11 @@ class OutputBufferManager {
     std::mutex                                             enqueued_buffers_mutex;
     std::vector<std::queue<std::shared_ptr<OutputHandle>>> enqueued_handles;
     std::vector<std::queue<Buffer>>                        enqueued_buffers;
+
+    // Diagnostics only; guarded by enqueued_buffers_mutex like everything else.
+    std::vector<size_t> stat_enqueued_total;
+    std::vector<size_t> stat_interrupts;
+    std::vector<size_t> stat_bytes_written;
 
     /**
      * Releases all memory in the given queue of buffers

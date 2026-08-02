@@ -70,7 +70,9 @@ OutputBufferManager::OutputBufferManager(std::shared_ptr<coyote::cThread> cthrea
     : cthread(cthread), mem_config(mem_config), memory_pool(memory_pool), tlb_manager(tlb_manager),
       NUM_STREAMS(mem_config->num_streams()), MANAGED_STREAMS(managed_streams),
       NUM_BUFFERS_TO_ENQUEUE(num_buffers_to_enqueue), BUFFER_CAPACITY(buffer_capacity),
-      enqueued_buffers(NUM_STREAMS), enqueued_handles(NUM_STREAMS) {
+      enqueued_buffers(NUM_STREAMS), enqueued_handles(NUM_STREAMS),
+      stat_enqueued_total(NUM_STREAMS, 0), stat_interrupts(NUM_STREAMS, 0),
+      stat_bytes_written(NUM_STREAMS, 0) {
     if (NUM_BUFFERS_TO_ENQUEUE == 0)
         throw std::runtime_error("Number of enqueued buffers has to be larger than 0");
     if (NUM_BUFFERS_TO_ENQUEUE > mem_config->maximum_num_enqueued_buffers())
@@ -105,6 +107,9 @@ void OutputBufferManager::handle_fpga_interrupt(int coyote_value) {
     assert(parsed.stream_id < NUM_STREAMS);
 
     std::lock_guard guard(enqueued_buffers_mutex);
+
+    stat_interrupts[parsed.stream_id] += 1;
+    stat_bytes_written[parsed.stream_id] += parsed.bytes_written;
 
     // 2. Move buffer from enqueued to it's corresponding handle
     move_current_buffer_to_handle(parsed.stream_id, parsed.bytes_written, parsed.last);
@@ -261,6 +266,12 @@ void OutputBufferManager::move_current_buffer_to_handle(stream_t stream_id, uint
     Profiler::close_regions({prefix + "move_current_buffer_to_handle"});
 }
 
+OutputBufferManager::StreamStats OutputBufferManager::stats(stream_t stream) {
+    std::lock_guard guard(enqueued_buffers_mutex);
+    return {enqueued_buffers[stream].size(), stat_enqueued_total[stream], stat_interrupts[stream],
+            stat_bytes_written[stream]};
+}
+
 void OutputBufferManager::enqueue_buffer_for_stream(stream_t stream_id) {
     Profiler::open_regions({prefix + "enqueue_buffer_for_stream"});
 
@@ -279,6 +290,7 @@ void OutputBufferManager::enqueue_buffer_for_stream(stream_t stream_id) {
 
     // 2. Store buffer
     enqueued_buffers[stream_id].push(buffer);
+    stat_enqueued_total[stream_id] += 1;
 
     // 3. Write the buffer to the FPGA
     mem_config->enqueue_buffer(stream_id, buffer);
